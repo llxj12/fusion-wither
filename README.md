@@ -10,6 +10,33 @@
 - 作者：llxj12
 - 许可：MIT（见 [LICENSE](LICENSE)）
 
+## English Summary
+
+**Fusion Wither** is a rework of the vanilla Wither for Minecraft 1.20.1 (Forge 47.x) that merges the
+Java Edition fight loop with the Bedrock Edition attack set.
+
+- **Phase 1 (100%–50% HP)** — ranged kiting at 6.5–8.5 blocks, driven by two independent skill timers:
+  a staggered three-head barrage, and 1–2 high-speed Bedrock-style dashes (no shots during a dash).
+- **Enrage (the moment HP drops below 50%)** — shorter shot intervals and a switch to straight-line charges.
+- **Phase 2** — falls straight down, explodes 4 ticks after landing, then hovers 2–3 blocks above the ground,
+  deflects *all* projectiles (melee and explosions still work), and picks between barrage and ground-slam
+  from a weighted behaviour pool, with a low-pressure idle window when both are on cooldown.
+- **Death sequence** — the lethal hit is rewritten into a real fatal blow so vanilla `die()` still runs
+  (loot, XP and kill credit keep vanilla semantics); the model is stretched over 80 ticks while the
+  death sound pitches down.
+
+**Install** — put `fusion_wither-1.0.0.jar` into `mods/` on both client and server (client is needed only
+to see the death animation). No extra dependencies.
+
+**Config** — 43 tuning values are generated in `config/fusion_wither-common.toml` in five groups
+(`wither` / `phase1` / `shots` / `phase2` / `misc`); `/reload` or a restart applies changes. Defaults are
+the accepted game feel, so a fresh install behaves identically to the reviewed build.
+
+**Debug** — `/wboss` (OP, permission level 2) prints or forces phases, behaviours, cooldowns, armour and HP.
+Its feedback text is Chinese-only; nothing else in the mod is player-visible text.
+
+Licensed under MIT; build with `./gradlew build --offline`.
+
 ## 环境要求
 
 | 项目 | 要求 |
