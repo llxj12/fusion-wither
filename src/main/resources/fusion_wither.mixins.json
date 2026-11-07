@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.fusionwither.wither.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "WitherBossAccessor",
+    "WitherBossAttackMixin",
+    "WitherBossMovementMixin",
+    "WitherSkullMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

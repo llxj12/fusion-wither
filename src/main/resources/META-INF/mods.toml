@@ -1,0 +1,39 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+# 问题反馈入口与模组主页：指向本模组的 GitHub 仓库。
+issueTrackerURL="https://github.com/llxj12/fusion-wither/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+
+# 模组主页：GitHub 仓库根地址。
+displayURL="https://github.com/llxj12/fusion-wither"
+
+# 图标：128x128 PNG，必须位于 jar 根目录，文件名与本行一致。
+logoFile="logo.png"
+
+authors="${mod_authors}"
+credits=""
+
+# 客户端与服务端必须版本一致（本模组同时含服务端逻辑与客户端渲染，默认值即为此语义）。
+displayTest="MATCH_VERSION"
+
+description='''${mod_description}'''
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"

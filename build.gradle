@@ -1,0 +1,299 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+minecraft {
+    // The mappings can be changed at any time and must be in the following format.
+    // Channel:   Version:
+    // official   MCVersion             Official field/method names from Mojang mapping files
+    // parchment  YYYY.MM.DD-MCVersion  Open community-sourced parameter names and javadocs layered on top of official
+    //
+    // You must be aware of the Mojang license when using the 'official' or 'parchment' mappings.
+    // See more information here: https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
+    //
+    // Parchment is an unofficial project maintained by ParchmentMC, separate from MinecraftForge
+    // Additional setup is needed to use their mappings: https://parchmentmc.org/docs/getting-started
+    //
+    // Use non-default mappings at your own risk. They may not always work.
+    // Simply re-run your setup task after changing the mappings to update your workspace.
+    mappings channel: mapping_channel, version: mapping_version
+
+    // When true, this property will have all Eclipse/IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
+    // In most cases, it is not necessary to enable.
+    // enableEclipsePrepareRuns = true
+    // enableIdeaPrepareRuns = true
+
+    // This property allows configuring Gradle's ProcessResources task(s) to run on IDE output locations before launching the game.
+    // It is REQUIRED to be set to true for this template to function.
+    // See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
+    copyIdeResources = true
+
+    // When true, this property will add the folder name of all declared run configurations to generated IDE run configurations.
+    // The folder name can be set on a run configuration using the "folderName" property.
+    // By default, the folder name of a run configuration is the name of the Gradle project containing it.
+    // generateRunFolders = true
+
+    // Access Transformer 默认关闭。
+    // 本机是离线环境，AT 会让 ForgeGradle 重新映射整个 Forge 构件并产生新的
+    // 坐标，`--offline` 下拿不到那些产物、必然构建失败。
+    // 需要访问 protected 成员时用 mixin 的 @Shadow，或直接用 public 字段。
+    // 确实要用 AT 时，把下面这行的注释打开并补上对应的 cfg 文件。
+    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+
+    // Default run configurations.
+    // These can be tweaked, removed, or duplicated as needed.
+    runs {
+        // applies to all the run configs below
+        configureEach {
+            workingDirectory project.file('run')
+
+            // Recommended logging data for a userdev environment
+            // The markers can be added/remove as needed separated by commas.
+            // "SCAN": For mods scan.
+            // "REGISTRIES": For firing of registry events.
+            // "REGISTRYDUMP": For getting the contents of all registries.
+            property 'forge.logging.markers', 'REGISTRIES'
+
+            // Recommended logging level for the console
+            // You can set various levels here.
+            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+            property 'forge.logging.console.level', 'debug'
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+
+        // This run config launches GameTestServer and runs all registered gametests, then exits.
+        // By default, the server will crash when no gametests are provided.
+        // The gametest system is also enabled by default for other run configs under the /test command.
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        data {
+            // example of overriding the workingDirectory set in configureEach above
+            workingDirectory project.file('run-data')
+
+            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+// Include resources generated by data generators.
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    // Put repositories for dependencies here
+    // ForgeGradle automatically adds the Forge maven and Maven Central for you
+
+    // If you have mod jar dependencies in ./libs, you can declare them as a repository like so.
+    // See https://docs.gradle.org/current/userguide/declaring_repositories.html#sub:flat_dir_resolver
+    // flatDir {
+    //     dir 'libs'
+    // }
+}
+
+dependencies {
+    // Specify the version of Minecraft to use.
+    // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
+    // The "userdev" classifier will be requested and setup by ForgeGradle.
+    // If the group id is "net.minecraft" and the artifact id is one of ["client", "server", "joined"],
+    // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // 单元测试只用 JUnit 4：测试对象是纯数值配置类（不触碰任何 Minecraft 类），
+    // 因此不需要整套游戏环境即可运行。
+    //
+    // 离线环境说明：本机没有 JUnit 的 Maven 缓存，写成 'junit:junit:4.13.2' 时
+    // --offline 下必然报 "No cached version ... available for offline mode"。
+    // Gradle 发行版自带的 lib 目录里恰好有同版本的 junit 与其运行时依赖 hamcrest-core，
+    // 因此改为按 gradle.gradleHomeDir 定位的本地文件依赖：
+    // 既不往版本库里塞二进制 jar，也不依赖任何网络仓库。
+    testImplementation files(
+            new File(gradle.gradleHomeDir, 'lib/junit-4.13.2.jar'),
+            new File(gradle.gradleHomeDir, 'lib/hamcrest-core-1.3.jar')
+    )
+
+    // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
+    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
+    // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
+    // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-forge-api:${jei_version}")
+    // runtimeOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
+
+    // Example mod dependency using a mod jar from ./libs with a flat dir repository
+    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
+    // The group id is ignored when searching -- in this case, it is "blank"
+    // implementation fg.deobf("blank:coolmod-${mc_version}:${coolmod_version}")
+
+    // For more info:
+    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
+    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+}
+
+// This block of code expands all declared replace properties in the specified resource targets.
+// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
+// When "copyIdeResources" is enabled, this will also run before the game launches in IDE environments.
+// See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version, forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors: mod_authors, mod_description: mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+// 测试运行时只需要「纯数值配置类 + ForgeConfigSpec」，不需要 ForgeGradle 的构建期工具。
+// 但 implementation 里的 minecraft 依赖会把 mergetool（及其传递依赖 srgutils）一并带进
+// testRuntimeClasspath，这两个构件在离线缓存里没有，会让 test 任务在解析阶段就失败。
+// 测试全程不会碰它们，因此在测试运行时排除；主构建的其它任务不受影响。
+configurations.testRuntimeClasspath {
+    exclude group: 'net.minecraftforge', module: 'mergetool'
+    exclude group: 'net.minecraftforge', module: 'srgutils'
+}
+
+// 单元测试：默认用 JUnit 4，显式声明以免 Gradle 升级后默认平台变化。
+tasks.named('test', Test).configure {
+    useJUnit()
+    testLogging { events 'failed' }
+
+    // 本机环境的 Gradle 测试 worker 无法启动：子 JVM 报
+    // "找不到主类 worker.org.gradle.process.internal.worker.GradleWorkerMain"，
+    // 与工程位于中文路径有关，与测试代码本身无关（同样的测试用普通 java 直跑 3/3 通过）。
+    // 由于 build → check → test，若保留开启会让 `gradlew build` 的发布产线卡在这个
+    // 环境问题上，因此默认关闭；在正常环境用 `gradlew test -PwithTests` 显式开启。
+    enabled = providers.gradleProperty('withTests').isPresent()
+}
+
+// 生产清单：写入版本、作者与 mixin 配置名，供 Forge 启动时读取。
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1', // We are version 1 of ourselves
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                // 让 Forge 在启动时加载本模组的 mixin 配置
+                'MixinConfigs'            : 'fusion_wither.mixins.json'
+        ])
+    }
+
+    // 重映射成 SRG 名，产出可被正式客户端加载的 jar
+    finalizedBy 'reobfJar'
+}
+
+// However if you are in a multi-project build, dev time needs unobfed jar files, so you can delay the obfuscation until publishing by doing:
+// tasks.named('publish').configure {
+//     dependsOn 'reobfJar'
+// }
+
+// Example configuration to allow publishing using the maven-publish plugin
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+// ---------------------------------------------------------------------------
+// 构建指纹：每次构建自动生成，打进 jar，启动时打印到日志。
+//
+// 为什么需要它：实机调试期间，用户合理地质疑"改动没生效，是不是没装上新 jar"。
+// 光看文件时间戳无法证明"游戏加载的是哪一版" —— 可能与旧文件同名、
+// 可能游戏没重启、可能是别的实例。有了指纹，日志里那一行就是唯一的真相来源。
+//
+// 指纹内容 = 全部源文件（含资源）的逐文件内容 MD5 汇总 + 构建时刻。
+// 只要任何一行源码改动，指纹就会变。
+// ---------------------------------------------------------------------------
+def buildFingerprint = { ->
+    def files = fileTree('src/main') { include '**/*.java', '**/*.json', '**/*.toml' }
+            .files.sort { it.path }
+    def md = java.security.MessageDigest.getInstance('MD5')
+    files.each { f ->
+        md.update(f.path.replace(File.separator, '/').getBytes('UTF-8'))
+        md.update(f.bytes)
+    }
+    md.digest().encodeHex().toString().substring(0, 12)
+}
+
+tasks.register('generateBuildInfo') {
+    def outDir = layout.buildDirectory.dir('generated/buildinfo')
+    // 必须声明 inputs：否则 Gradle 认为任务永远 UP-TO-DATE，
+    // 源码改了指纹却不更新 —— 那这个指纹就毫无意义（实测踩到过）。
+    inputs.files(fileTree('src/main') { include '**/*.java', '**/*.json', '**/*.toml' })
+    outputs.dir(outDir)
+    doLast {
+        def d = outDir.get().asFile
+        d.mkdirs()
+        def stamp = new Date().format("yyyy-MM-dd HH:mm:ss")
+        def fp = buildFingerprint()
+        new File(d, 'fusion_wither-build-info.txt').setText(
+                "fingerprint=${fp}\nbuilt=${stamp}\n", 'UTF-8')
+        println "[凋零] 构建指纹 = ${fp}  (${stamp})"
+    }
+}
+
+sourceSets.main.resources.srcDir layout.buildDirectory.dir('generated/buildinfo')
+tasks.named('processResources') { dependsOn 'generateBuildInfo' }
+
+// ---------------------------------------------------------------------------
+// Mixin 使用须知（本项目已启用 4 个 mixin，改动前先读本节）
+//
+// 1. 生产环境用 SRG 名：Minecraft 1.20.1 运行时是混淆名，@Inject 的 target
+//    必须写 SRG 名（例：LivingEntity#setHealth 是 m_21153_，不是 m_5634_ ——
+//    后者是 heal()）。自己写的 Java 代码用官方名即可，reobfJar 会自动映射。
+// 2. 不要写 refmap 字段：本机环境下 refmap 从未被应用，直接写 SRG 名一次通过。
+// 3. 不要用 AccessTransformer：会触发 ForgeGradle 重新映射整个 Forge 构件，
+//    离线环境必然失败。改用 mixin 的 @Shadow。
+// 4. @Shadow 不能解析父类字段，改用强制转型直接访问 public 字段。
+// 5. ForgeGradle 6.x 没有 mixin {} 配置块，启用 mixin 只能靠 jar 清单里的
+//    MixinConfigs 属性（见上方 tasks.named('jar') 里的注释）。
+// ---------------------------------------------------------------------------
+

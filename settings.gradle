@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
+}
+
+// 工程名决定 jar 清单里的 Implementation-Title。
+// 不显式声明时 Gradle 会取目录名（本项目目录是 newmod-1.20.1），
+// 导致 MANIFEST 里残留旧身份；这里显式对齐模组 id。
+rootProject.name = mod_id
