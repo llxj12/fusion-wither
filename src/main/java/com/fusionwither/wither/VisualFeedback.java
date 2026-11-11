@@ -1,6 +1,6 @@
 /*
- * 【文件职责】凋零的视觉/听觉反馈总集：把"它要干什么"用粒子与音效提前告诉玩家。
- * 【所属模块】wither 核心（凋零辅助能力）。
+ * 【文件职责】凋灵的视觉/听觉反馈总集：把"它要干什么"用粒子与音效提前告诉玩家。
+ * 【所属模块】wither 核心（凋灵辅助能力）。
  * 【协作关系】由各行为与阶段逻辑在关键时刻调用（阶段切换、狂暴切换、二阶段入场、
  *             冲撞蓄力/冲锋/命中、弹幕压制期间）；调用方在服务端每帧驱动。
  * 【关键约束】所有粒子/音效只在服务端发出（sendParticles/playSound 由服务端广播），
@@ -34,13 +34,13 @@ public final class VisualFeedback {
     private VisualFeedback() {}
 
     /**
-     * 攻击欲望切换：红色粒子环 + 音效，让玩家知道凋零"上头了"或"冷静了"。
+     * 攻击欲望切换：红色粒子环 + 音效，让玩家知道凋灵"上头了"或"冷静了"。
      *
      * <p><b>调用时机：</b>目标血量跨越阈值导致攻击欲望变化的那一刻，只调一次。
      *
      * <p><b>副作用：</b>向附近玩家广播两组粒子并播放一声环境音。
      *
-     * @param wither 目标凋零
+     * @param wither 目标凋灵
      * @param level 所在关卡；非服务端直接返回
      */
     public static void desireSwitched(WitherBoss wither, Level level) {
@@ -58,12 +58,12 @@ public final class VisualFeedback {
     /**
      * 二阶段入场演出：怒吼 + 护甲闪光 + 闪电。
      *
-     * <p><b>调用时机：</b>凋零进入二阶段的那一刻（入场坠落演出开始时），只调一次。
+     * <p><b>调用时机：</b>凋灵进入二阶段的那一刻（入场坠落演出开始时），只调一次。
      *
      * <p><b>副作用：</b>广播成环的火焰粒子、灵魂火、爆炸发射器粒子，并播放两声吼叫；
      * 其中 {@code WITHER_SPAWN} 音调压到 0.6 制造"更低沉"的压迫感。
      *
-     * @param wither 目标凋零
+     * @param wither 目标凋灵
      * @param level 所在关卡；非服务端直接返回
      */
     public static void phaseTwoEntry(WitherBoss wither, Level level) {
@@ -111,9 +111,9 @@ public final class VisualFeedback {
      *
      * <p><b>调用时机：</b>冲撞蓄力开始时播放一次，音调压低表示"要来了"。
      *
-     * <p><b>副作用：</b>在凋零当前坐标播放一声射击音。
+     * <p><b>副作用：</b>在凋灵当前坐标播放一声射击音。
      *
-     * @param wither 目标凋零
+     * @param wither 目标凋灵
      * @param level 所在关卡
      */
     public static void crashWindup(WitherBoss wither, Level level) {
@@ -144,7 +144,7 @@ public final class VisualFeedback {
      * <p><b>副作用：</b>只发粒子不播音效 —— 逐 tick 播音效会糊成噪音；
      * 用爆炸粒子 + 大烟雾构成可追踪的尾迹。
      *
-     * @param wither 目标凋零
+     * @param wither 目标凋灵
      * @param level 所在关卡；非服务端不发粒子
      */
     public static void crashChargeTrail(WitherBoss wither, Level level) {
@@ -176,7 +176,7 @@ public final class VisualFeedback {
      *
      * <p><b>副作用：</b>按配置的粒子数量广播血色尘土，并配少量烟雾强化"发热/暴怒"的观感。
      *
-     * @param wither 目标凋零
+     * @param wither 目标凋灵
      * @param level 所在关卡；非服务端不发粒子
      */
     public static void rageAura(WitherBoss wither, Level level) {
@@ -204,7 +204,7 @@ public final class VisualFeedback {
      *
      * <p><b>副作用：</b>播放一声通用爆炸音（音调 0.7 压低，与普通爆炸区分）。
      *
-     * @param wither 目标凋零
+     * @param wither 目标凋灵
      * @param level 所在关卡
      */
     public static void crashImpact(WitherBoss wither, Level level) {

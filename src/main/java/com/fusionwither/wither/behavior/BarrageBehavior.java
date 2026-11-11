@@ -13,7 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 /**
  * 行为池 · 行为 A：<b>弹幕压制</b>。
  *
- * <p>三头各自独立瞄准（原版 Java 凋零式）+ 低速度位移，持续随机 {@code BARRAGE_DURATION_MIN_TICKS ~ MAX_TICKS}
+ * <p>三头各自独立瞄准（原版 Java 凋灵式）+ 低速度位移，持续随机 {@code BARRAGE_DURATION_MIN_TICKS ~ MAX_TICKS}
  * （{@link WitherConfig#BARRAGE_DURATION_MIN_TICKS} 50t ~ {@link WitherConfig#BARRAGE_DURATION_MAX_TICKS} 100t）。
  * 位移速度很低，给玩家绕后或找掩体的空间。
  *
@@ -70,11 +70,11 @@ public final class BarrageBehavior extends BaseBehavior {
 
         // 【控制权划分】位移已全部交给 WitherBrain 的 moveToward() ——
         // 它按「阶段 × 当前行为」决定期望距离与高度，并直接纠正实体坐标。
-        // 本行为<b>不再</b>自行推动凋零：早先这里用 brain().push() 会与 moveToward
+        // 本行为<b>不再</b>自行推动凋灵：早先这里用 brain().push() 会与 moveToward
         // 抢速度向量，是本项目多轮失败的根源。压制时的距离差异（一阶段接近 / 二阶段稍远）
         // 由 moveToward 的 desiredDistance() 依据当前行为名判定。
 
-        // 压制输出：三颗头各按自己的冷却开火（原版 Java 凋零式）。
+        // 压制输出：三颗头各按自己的冷却开火（原版 Java 凋灵式）。
         // 计时由 WitherBrain.tick() 每帧统一扣减，本行为不做任何本地计时 ——
         // 若这里再自行计时，就会与「三头独立冷却」形成两套时间语义而漂移。
         brain().fireReadyHeads(t,

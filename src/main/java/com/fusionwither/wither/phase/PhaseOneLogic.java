@@ -44,10 +44,10 @@ import net.minecraft.world.phys.Vec3;
  * 它比较的是 {@code target.getHealth() / target.getMaxHealth()} 与阈值，
  * 即目标<b>当前血量占其上限的比例</b>。用比例而不是写死某个血量数字，是因为目标的最大血量
  * 会随难度、装备、其它模组变化 —— 若用绝对阈值（例如 10 点），强化过血量的目标可能在满血时就
- * 已经低于阈值，凋零一进场就狂暴，一阶段等于不存在；用比例则任何最大血量下都保证
+ * 已经低于阈值，凋灵一进场就狂暴，一阶段等于不存在；用比例则任何最大血量下都保证
  * 「打掉一半才狂暴」。这个判定还带 40 tick 防抖（见 {@code desireCooldown}），
  * 且是<b>可逆</b>的：目标回血到 &gt; 50% 即退出狂暴，因此本类每帧都重新读，
- * 不做一次性 latch（否则「半血后迅速回满」会让凋零永远卡在追杀模式）。</p>
+ * 不做一次性 latch（否则「半血后迅速回满」会让凋灵永远卡在追杀模式）。</p>
  *
  * <p><b>不变量：</b>每个分支在返回前都必须调用一次 {@code brain.applyAltitude()}。
  * 坐标所有权机制下，本帧不登记任何位移意图就会被 MovementMixin 钉回本帧起点，
@@ -73,10 +73,10 @@ public final class PhaseOneLogic {
      * </ol></p>
      *
      * <p><b>副作用：</b>会改写技能 CD / 技能时长 / 技能槽位，会登记本帧位移意图
-     * （经 {@code moveBy}，最终由 MovementMixin 落地），可能发射凋零之首、
+     * （经 {@code moveBy}，最终由 MovementMixin 落地），可能发射凋灵之首、
      * 播音效（经 SkullVolley），并在技能 1 启动时写一行诊断日志。</p>
      *
-     * @param brain 该凋零的状态容器；所有读写都经它的访问器，不存在本类的副本
+     * @param brain 该凋灵的状态容器；所有读写都经它的访问器，不存在本类的副本
      */
     public static void tick(WitherBrain brain) {
         // 说明：三颗头的射击冷却由 WitherBrain.tick() 每帧统一扣减一次
@@ -162,7 +162,7 @@ public final class PhaseOneLogic {
      * <p><b>副作用：</b>写 {@code p1Skill1Cd} / {@code p1Skill2Cd}。
      * 狂暴模式不经过这里，因此狂暴期间两个技能 CD 停在原地。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void tickCooldowns(WitherBrain brain) {
         if (brain.p1Skill1Cd() > 0) {
@@ -187,7 +187,7 @@ public final class PhaseOneLogic {
      * <p><b>副作用：</b>写 {@code p1Skill1Ticks}；结束时把 {@code p1Skill} 归 0、
      * 重掷技能1 CD、写一行战况记录。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void tickSkill1(WitherBrain brain) {
         int left = brain.p1Skill1Ticks() - 1;
@@ -214,7 +214,7 @@ public final class PhaseOneLogic {
      * 清状态必须与 {@link BeDash#begin} 严格对称 —— 残留值在当时可能无害，
      * 但将来某次改动后就会生效（V-01 同型问题：同一语义的两份状态不同步）。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void tickSkill2(WitherBrain brain) {
         int left = brain.p1Skill2Ticks() - 1;
@@ -250,7 +250,7 @@ public final class PhaseOneLogic {
      * {@link WitherBrain#staggerHeadShotCds} 重掷三颗头的冷却相位并写诊断日志，
      * 技能2 会调 {@link BeDash#begin} 初始化冲刺段。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      * @return true = 本帧成功启动了一个技能，调用方需在本帧就地执行它一次
      */
     private static boolean tryStartSkill(WitherBrain brain) {
@@ -290,7 +290,7 @@ public final class PhaseOneLogic {
             // 诊断日志：与冲撞/上升的既有做法一致，方便实测时直接翻 latest.log
             // 核对"技能有没有触发、这一轮的节奏参数是多少"，而不必靠肉眼推断。
             NewMod.LOGGER.info(
-                    "[凋零/诊断] 压制弹幕开始：持续={}tick 主头间隔={}tick 副头间隔={}~{}tick（三头各自独立计时）",
+                    "[凋灵/诊断] 压制弹幕开始：持续={}tick 主头间隔={}tick 副头间隔={}~{}tick（三头各自独立计时）",
                     brain.p1Skill1Ticks(),
                     WitherConfig.BARRAGE_MAIN_SHOT_INTERVAL_TICKS,
                     WitherConfig.BARRAGE_SIDE_SHOT_INTERVAL_MIN_TICKS,
@@ -309,7 +309,7 @@ public final class PhaseOneLogic {
     // =================================================================
 
     /**
-     * 平A：消耗模式常态下由主头打出的单发凋零之首。
+     * 平A：消耗模式常态下由主头打出的单发凋灵之首。
      *
      * <p><b>调用时机：</b>{@link #tick} 的「风筝常态」分支末尾，每帧一次；
      * 是否真的发射由主头自身冷却节流。</p>
@@ -323,11 +323,11 @@ public final class PhaseOneLogic {
      * 让「平A 单发低伤」与「压制三头高伤」在伤害维度上也能分辨，
      * 而不只是靠射速与弹头数量区分两种攻击。</p>
      *
-     * <p><b>副作用：</b>可能发射一枚凋零之首并重掷主头冷却。
+     * <p><b>副作用：</b>可能发射一枚凋灵之首并重掷主头冷却。
      * 无目标时直接返回且<b>不动冷却</b> —— 这样目标一出现立刻就能打，
      * 不用等待一个刚被消耗掉的冷却周期。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void basicAttack(WitherBrain brain) {
         if (brain.headShotCd(0) > 0) {
@@ -353,17 +353,17 @@ public final class PhaseOneLogic {
      *
      * <p><b>调用时机：</b>{@link #tick} 中技能1 分支的每一帧（含触发帧）。</p>
      *
-     * <p><b>节奏照抄原版 Java 凋零：</b>主头用固定间隔
+     * <p><b>节奏照抄原版 Java 凋灵：</b>主头用固定间隔
      * {@code BARRAGE_MAIN_SHOT_INTERVAL_TICKS}（对应原版
      * {@code RangedAttackGoal(this, 1.0, 40, 20.0f)} 里的 40），两颗副头各自
      * {@code 40 + rand(20)}。三颗头各读自己那一个冷却决定这一帧谁开火，因此天然错峰，
      * 不会出现"三个头一起发射"。</p>
      *
-     * <p><b>副作用：</b>可能生成 0~3 枚凋零之首并各自播一次开火音效；
+     * <p><b>副作用：</b>可能生成 0~3 枚凋灵之首并各自播一次开火音效；
      * 弹幕伤害取 {@code SKULL_BLACK_DAMAGE}（黑色弹幕的高伤值）。
      * 目标为 null（{@code targetEntity()} 未命中）时由 {@code fireReadyHeads} 内部跳过。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void fireBarrage(WitherBrain brain) {
         brain.fireReadyHeads(brain.targetEntity(),
@@ -383,9 +383,9 @@ public final class PhaseOneLogic {
      * "残血追击变成三个头一起发射"。现在改为三颗头各自读冷却开火，节奏取自
      * {@code RAGE_*} 系列常量（比压制期更密，用来体现暴怒追杀的压力），但三头仍然错峰。</p>
      *
-     * <p><b>副作用：</b>可能生成 0~3 枚凋零之首并各播一次开火音效（伤害同 {@code SKULL_BLACK_DAMAGE}）。</p>
+     * <p><b>副作用：</b>可能生成 0~3 枚凋灵之首并各播一次开火音效（伤害同 {@code SKULL_BLACK_DAMAGE}）。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void rageVolley(WitherBrain brain) {
         brain.fireReadyHeads(brain.targetEntity(),
@@ -408,7 +408,7 @@ public final class PhaseOneLogic {
      * {@code brain.stopMoving()} 表示本帧不动。无目标时直接返回（本帧零位移意图，
      * 被坐标所有权机制钉回本帧起点）。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     private static void rushdown(WitherBrain brain) {
         WitherBoss wither = brain.wither();
@@ -455,7 +455,7 @@ public final class PhaseOneLogic {
      *
      * <p><b>副作用：</b>写 {@code brain} 的狂暴粒子冷却；过期时生成服务端粒子（客户端据此显示）。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     public static void rageParticles(WitherBrain brain) {
         int cd = brain.rageParticleCd() - 1;

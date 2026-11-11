@@ -1,5 +1,5 @@
 /*
- * 【文件职责】给凋零的私有 Boss 血条字段开放一个读取入口，让模组代码能拿到血条对象
+ * 【文件职责】给凋灵的私有 Boss 血条字段开放一个读取入口，让模组代码能拿到血条对象
  *             去改名、改颜色、改进度。
  * 【所属模块】wither.mixin 原版注入层 —— 本模组对原版的所有改动都从这一层进入。
  * 【协作关系】由 WitherBrain（血条绑定与每帧刷新）与 WitherArmor.updateBossBar 读取；
@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * 凋零私有血条字段的访问器接口。
+ * 凋灵私有血条字段的访问器接口。
  *
  * <p><b>设计要点：</b>原版把血条字段设为私有，模组代码无法直接引用；{@code @Accessor}
  * 让 Mixin 在编译期就把 {@code fusion$getBossEvent()} 实现成对该字段的直接读取，
@@ -36,9 +36,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 public interface WitherBossAccessor {
 
     /**
-     * 取出凋零的私有 Boss 血条对象。
+     * 取出凋灵的私有 Boss 血条对象。
      *
-     * <p><b>调用时机：</b>WitherBrain 首次为这只凋零绑定血条时调用一次，之后复用返回的
+     * <p><b>调用时机：</b>WitherBrain 首次为这只凋灵绑定血条时调用一次，之后复用返回的
      * 实例做改名/改色/改进度，不重复取。血条对象随实体创建而存在、随实体销毁而消亡。
      *
      * <p><b>前提条件：</b>必须在服务端调用；客户端侧没有真实血条实例。
@@ -47,7 +47,7 @@ public interface WitherBossAccessor {
      * {@code bossEvent} 字段（SRG 名 {@code f_31430_}，经 javap 确证）。因为无 refmap，
      * 这里只能写 SRG 名，写官方名编译期就找不到。
      *
-     * @return 该凋零的 Boss 血条，构造时即创建，永不为 null
+     * @return 该凋灵的 Boss 血条，构造时即创建，永不为 null
      */
     @Accessor("f_31430_")
     ServerBossEvent fusion$getBossEvent();

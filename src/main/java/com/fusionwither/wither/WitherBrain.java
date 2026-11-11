@@ -1,6 +1,6 @@
 /*
- * 【文件职责】凋零 Boss 的行为状态机：每帧推进阶段切换、索敌、射击冷却扣减、行为池调度，并登记本帧希望到达的坐标。
- * 【所属模块】wither 核心（com.fusionwither.wither），是凋零所有战斗逻辑的中枢。
+ * 【文件职责】凋灵 Boss 的行为状态机：每帧推进阶段切换、索敌、射击冷却扣减、行为池调度，并登记本帧希望到达的坐标。
+ * 【所属模块】wither 核心（com.fusionwither.wither），是凋灵所有战斗逻辑的中枢。
  * 【协作关系】外部每 tick 调 tick()；tick() 内部向 PhaseOneLogic / PhaseTwoLogic 派发阶段逻辑，
  * 向 BarrageBehavior / CrashBehavior 派发二阶段行为；本类登记 desired 坐标后，由
  * WitherBossMovementMixin 注入原版 WitherBoss.aiStep(m_8107_) 末尾回调 enforceMovement() 真正落地。
@@ -33,24 +33,24 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * 凋零（WitherBoss）的行为总控类：一个凋零实体对应一个实例，随凋零存活而存在。
+ * 凋灵（WitherBoss）的行为总控类：一个凋灵实体对应一个实例，随凋灵存活而存在。
  *
  * <p>设计要点：
  * <ul>
- *   <li>凋零实体本身只是「躯壳」，所有决策（阶段、索敌、冷却、行为、位移意图）都收拢在本类，
+ *   <li>凋灵实体本身只是「躯壳」，所有决策（阶段、索敌、冷却、行为、位移意图）都收拢在本类，
  *       避免逻辑散落在 mixin 与实体子类里；实体侧只保留注入点。</li>
  *   <li>位置不是靠速度驱动的：tick() 开头锁定当前坐标 base*，之后各逻辑用 desired* 表达「本帧想去哪」；
- *       若本帧没人登记 desired，mixin 就把凋零钉回 base*，等价于「冻结」。</li>
+ *       若本帧没人登记 desired，mixin 就把凋灵钉回 base*，等价于「冻结」。</li>
  *   <li>本类不自己扫描怪物来决定打谁，而是消费原版 getTarget()，因此「玩家优先」由原版 targetSelector 天然保证。</li>
  * </ul>
  *
  * <p>生命周期：由 {@link #of(WitherBoss)} 在需要时惰性创建并登记进 {@link #BRAINS}；
- * 凋零死亡或移除时由 {@link #forget(WitherBoss)} 注销，防止 map 无界增长。
+ * 凋灵死亡或移除时由 {@link #forget(WitherBoss)} 注销，防止 map 无界增长。
  *
  * <p>不变量：
  * <ul>
  *   <li>禁止写 deltaMovement 来位移（原因见文件头）；</li>
- *   <li>每个实例只服务唯一一个凋零实体，UUID 是 map 的唯一键；</li>
+ *   <li>每个实例只服务唯一一个凋灵实体，UUID 是 map 的唯一键；</li>
  *   <li>坐标所有权：本帧登记了 desired 就钉 desired，否则钉回 base*，两者必居其一。</li>
  * </ul>
  */
@@ -59,10 +59,10 @@ public final class WitherBrain {
     /** UUID → 行为脑 的全局登记表：mixin 侧只能拿到实体，靠它反查出对应的 WitherBrain 来执行坐标钉回。 */
     private static final Map<UUID, WitherBrain> BRAINS = new HashMap<>();
 
-    /** 本脑所服务的凋零实体；构造后不变，所有读写坐标/血量/朝向的调用都以它为入口。 */
+    /** 本脑所服务的凋灵实体；构造后不变，所有读写坐标/血量/朝向的调用都以它为入口。 */
     private final WitherBoss wither;
 
-    /** 凋零所在维度，构造时缓存一次，供射线检测、方块高度查询与实体扫描使用。 */
+    /** 凋灵所在维度，构造时缓存一次，供射线检测、方块高度查询与实体扫描使用。 */
     private final Level level;
     /** 本脑独占的随机源：行为池加权抽取、冷却抖动、随机水平方向与粒子时机都由它产生。 */
     private final Random random = new Random();
@@ -76,7 +76,7 @@ public final class WitherBrain {
     private double desire = 0.0D;
     /** desire 切换后的防抖倒计时，单位 tick：未归零前 updateDesire() 不再改写 desire，避免目标血量在阈值附近反复抖动。 */
     private int desireCooldown = 0;
-    /** 入场定格剩余时长，单位 tick：>0 期间凋零原地不动只转头，由 landPhaseTwoEntry()/debug 写入，handleIntro() 每帧递减。 */
+    /** 入场定格剩余时长，单位 tick：>0 期间凋灵原地不动只转头，由 landPhaseTwoEntry()/debug 写入，handleIntro() 每帧递减。 */
     private int introTicks = 0;
 
     /** 出生苏醒日志去重标志：保证「进入苏醒」与「苏醒结束」两条日志各自只打一次，避免每帧刷屏。 */
@@ -97,13 +97,13 @@ public final class WitherBrain {
     /** 平A（非技能的自瞄头颅）冷却，单位 tick：由 tickIdleAttack() 递减并在发射时重置为随机间隔。 */
     private int idleAttackCd = 0;
 
-    /** 凋零的头数（主头 + 左右副头），用于 headShotCd 数组长度与遍历上界。 */
+    /** 凋灵的头数（主头 + 左右副头），用于 headShotCd 数组长度与遍历上界。 */
     private static final int HEAD_COUNT = 3;
 
     /** 三个头各自独立的射击冷却，单位 tick，下标 0=主头、1/2=副头；下标直接映射到 SkullVolley.fireFromHead 的 head 参数。 */
     private final int[] headShotCd = new int[HEAD_COUNT];
 
-    /** 空闲窗口剩余时长，单位 tick：行为结束或无可选行为时写入，让凋零悬停片刻再重新决策，避免行为无缝连播。 */
+    /** 空闲窗口剩余时长，单位 tick：行为结束或无可选行为时写入，让凋灵悬停片刻再重新决策，避免行为无缝连播。 */
     private int idleWindowTicks = 0;
 
     /** 上一帧是否处于空闲态的记录，仅供外部（动画/调试）查询，不再参与决策，避免与 idleWindowTicks 形成两份判据。 */
@@ -167,8 +167,8 @@ public final class WitherBrain {
     private int tickCount = 0;
 
     /**
-     * 【坐标所有权】本帧起点 X：tick() 开头从凋零身上抓取。
-     * 本帧若无人登记 desired，mixin 就把凋零钉回这里（等效「原地冻结」），而不是放任原版速度把它带走。
+     * 【坐标所有权】本帧起点 X：tick() 开头从凋灵身上抓取。
+     * 本帧若无人登记 desired，mixin 就把凋灵钉回这里（等效「原地冻结」），而不是放任原版速度把它带走。
      */
     private double baseX;
     /** 见 baseX；入场坠落时 pinFallFrame() 会直接改写本字段来推进下坠，而不是写速度。 */
@@ -185,7 +185,7 @@ public final class WitherBrain {
     /** 本帧是否登记过 desired 坐标：tick() 开头清假、snapshotDesired() 置真、pinFallFrame() 会主动压回 false。 */
     private boolean hasDesired = false;
 
-    /** 是否允许本帧钉回坐标：仅当 tick() 至少跑过一次后才置真，防止尚未被状态机驱动的新凋零被钉到 (0,0,0)。 */
+    /** 是否允许本帧钉回坐标：仅当 tick() 至少跑过一次后才置真，防止尚未被状态机驱动的新凋灵被钉到 (0,0,0)。 */
     private boolean armed = false;
 
     /** 二阶段入场坠落是否进行中：enterPhaseTwo() 置真、landPhaseTwoEntry() 置假；为真时 tick() 每帧交给 handlePhaseTwoFall()。 */
@@ -202,9 +202,9 @@ public final class WitherBrain {
 
     /**
      * 私有构造：仅由 {@link #of(WitherBoss)} 惰性调用。
-     * 副作用：缓存凋零与其所在维度，并预创建两个二阶段常驻行为实例（行为本身无内部状态，状态留在本脑字段里）。
+     * 副作用：缓存凋灵与其所在维度，并预创建两个二阶段常驻行为实例（行为本身无内部状态，状态留在本脑字段里）。
      *
-     * @param wither 本脑所服务的凋零实体
+     * @param wither 本脑所服务的凋灵实体
      */
     private WitherBrain(WitherBoss wither) {
         this.wither = wither;
@@ -214,28 +214,28 @@ public final class WitherBrain {
     }
 
     /**
-     * 取得凋零对应的行为脑，不存在则创建并登记，是外部访问本类状态的唯一入口。
-     * 用 UUID 而非实体引用作键：凋零实体可能被卸载/重建，UUID 始终稳定。
+     * 取得凋灵对应的行为脑，不存在则创建并登记，是外部访问本类状态的唯一入口。
+     * 用 UUID 而非实体引用作键：凋灵实体可能被卸载/重建，UUID 始终稳定。
      *
-     * @param wither 目标凋零实体
-     * @return 该凋零的行为脑；同一 UUID 始终返回同一实例
+     * @param wither 目标凋灵实体
+     * @return 该凋灵的行为脑；同一 UUID 始终返回同一实例
      */
     public static WitherBrain of(WitherBoss wither) {
         return BRAINS.computeIfAbsent(wither.getUUID(), id -> new WitherBrain(wither));
     }
 
     /**
-     * 注销凋零对应的行为脑，需在凋零死亡/被移除时调用。
-     * 必要性：UUID 键永不复用，不注销则长期运行的服务器里 {@link #BRAINS} 会随每只凋零的出生无界增长。
+     * 注销凋灵对应的行为脑，需在凋灵死亡/被移除时调用。
+     * 必要性：UUID 键永不复用，不注销则长期运行的服务器里 {@link #BRAINS} 会随每只凋灵的出生无界增长。
      *
-     * @param wither 即将消失的凋零实体
+     * @param wither 即将消失的凋灵实体
      */
     public static void forget(WitherBoss wither) {
         BRAINS.remove(wither.getUUID());
     }
 
     /**
-     * 凋零的行为主循环，由凋零实体/事件层每 tick 调用一次，是全部战斗逻辑的驱动入口。
+     * 凋灵的行为主循环，由凋灵实体/事件层每 tick 调用一次，是全部战斗逻辑的驱动入口。
      *
      * <p>严格执行顺序（顺序本身是设计的一部分，调整会引起状态抖动）：
      * <ol>
@@ -246,7 +246,7 @@ public final class WitherBrain {
      *       导致 phase2 反复进入/退出（每 2 tick 抖一次并反复触发大爆炸）；</li>
      *   <li>updatePhase() → updateDesire() → updateRageMode()，随后是二阶段入场坠落（命中即 return）；</li>
      *   <li>tickHeadShotCds() —— 必须排在 handleIntro() 的早退之前：否则入场定格的每一帧都会冻住某个头的冷却；</li>
-     *   <li>faceTarget() —— 每帧都调：原版 AI 已被取消，不接管朝向凋零会背对目标发射头颅；</li>
+     *   <li>faceTarget() —— 每帧都调：原版 AI 已被取消，不接管朝向凋灵会背对目标发射头颅；</li>
      *   <li>handleIntro() 早退，最后才是位移接管段（一阶段/二阶段逻辑派发）。</li>
      * </ol>
      *
@@ -256,13 +256,13 @@ public final class WitherBrain {
         tickCount++;
 
         // 坐标所有权第 1 步：记录本帧起点并清空本帧位移意图。
-        // 必须放在最前：后续逻辑只负责「登记 desired」；若本帧无人登记，mixin 会把凋零钉回 base*（等效冻结），
+        // 必须放在最前：后续逻辑只负责「登记 desired」；若本帧无人登记，mixin 会把凋灵钉回 base*（等效冻结），
         // 而不是让它按原版残留速度乱飘。
         baseX = wither.getX();
         baseY = wither.getY();
         baseZ = wither.getZ();
         hasDesired = false;
-        // armed=防止「尚未被本状态机驱动过的凋零」在 aiStep 里被钉到 (0,0,0)：
+        // armed=防止「尚未被本状态机驱动过的凋灵」在 aiStep 里被钉到 (0,0,0)：
         // 只有 tick() 至少跑过一次、armed 置真后，mixin 侧 enforceNow() 才真正执行钉回。
         armed = true;
 
@@ -297,7 +297,7 @@ public final class WitherBrain {
         tickHeadShotCds();
 
         // ⑧ 每帧强制对齐朝向：原版 AI 已被取消（本类接管位移后原版不再自己转向），
-        // 不在这里转向的话凋零会背对目标发射头颅。
+        // 不在这里转向的话凋灵会背对目标发射头颅。
         faceTarget();
 
         // ⑨ 入场定格（P2 入场后 / 调试强制一阶段）优先于一切行为派发。
@@ -337,7 +337,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 冻结全部战斗状态，把凋零拉回「无目标、无技能、无行为」的初始态。
+     * 冻结全部战斗状态，把凋灵拉回「无目标、无技能、无行为」的初始态。
      *
      * <p>调用时机：tick() 位移接管段检测到 targetEntity()==null 时。
      * <p>副作用：清空二阶段当前行为与空闲窗口、终止一阶段两个技能、重置 BE 走位（BeDash.reset）。
@@ -359,14 +359,14 @@ public final class WitherBrain {
      * 推进入二阶段入场坠落，由 tick() 每帧调用（fallActive 为假时立刻返回 false）。
      *
      * <p>副作用：经 pinFallFrame() 改写 baseY 以推进下坠、递减 fallTicksLeft / fallPauseTicks，
-     * 触地停顿结束后调用 landPhaseTwoEntry() 完成爆炸与召唤；本帧还会保持 faceTarget() 让凋零转向目标。
+     * 触地停顿结束后调用 landPhaseTwoEntry() 完成爆炸与召唤；本帧还会保持 faceTarget() 让凋灵转向目标。
      *
      * @return true 表示本帧已被坠落流程独占，tick() 必须立刻 return，跳过行为池与技能派发
      *
      * <p>为什么改 baseY 而不写 deltaMovement：原版 aiStep 把 y 速度分量硬写为 0，
      * 想向下坠只能直接改坐标，再由 mixin 钉回。
      * <p>为什么需要 fallTicksLeft 超时兜底：虚空或极深洞穴里向下射线打不到地面，
-     * 没有超时就会永久卡在这个早退分支（凋零悬在空中不再做任何事）。
+     * 没有超时就会永久卡在这个早退分支（凋灵悬在空中不再做任何事）。
      */
     private boolean handlePhaseTwoFall() {
         if (!fallActive) {
@@ -375,7 +375,7 @@ public final class WitherBrain {
 
         faceTarget();
 
-        // 触地停顿阶段：把凋零钉死在落点，倒计时归零后触发爆炸收尾；期间同样整帧早退。
+        // 触地停顿阶段：把凋灵钉死在落点，倒计时归零后触发爆炸收尾；期间同样整帧早退。
         if (fallPauseTicks > 0) {
             fallPauseTicks--;
             pinFallFrame(fallTargetY);
@@ -387,7 +387,7 @@ public final class WitherBrain {
 
         // 超时安全网：射线始终没探到地面（虚空 / 超深洞穴）时，就地以上限时的目标高度触地，避免永久卡坠。
         if (fallTicksLeft <= 0) {
-            NewMod.LOGGER.warn("[凋零/诊断] 凋灵 {} 二阶段入场坠落超时（目标 Y={}），强制就地触地",
+            NewMod.LOGGER.warn("[凋灵/诊断] 凋灵 {} 二阶段入场坠落超时（目标 Y={}），强制就地触地",
                     wither.getUUID(), fallTargetY);
             pinFallFrame(fallTargetY);
             fallPauseTicks = WitherConfig.PHASE2_ENTRY_GROUND_PAUSE_TICKS;
@@ -401,7 +401,7 @@ public final class WitherBrain {
         // 1.0E-4 是消除浮点误差的容差：两数相减可能残留极小尾数，用严格相等会漏判「已贴地」而多坠一帧。
         if (nextY <= fallTargetY + 1.0E-4D) {
             fallPauseTicks = WitherConfig.PHASE2_ENTRY_GROUND_PAUSE_TICKS;
-            NewMod.LOGGER.info("[凋零/诊断] 凋灵 {} 二阶段入场：已坠落触地（Y={}），停顿 {} tick 后爆炸",
+            NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 二阶段入场：已坠落触地（Y={}），停顿 {} tick 后爆炸",
                     wither.getUUID(), nextY, fallPauseTicks);
         }
         return true;
@@ -410,7 +410,7 @@ public final class WitherBrain {
     /**
      * 把本帧的目标高度钉在指定 Y：改写 baseY，并把 hasDesired 压回 false。
      *
-     * @param y 本帧希望凋零所处的 Y 坐标（下坠过程中为逐帧递减值，触地后为 fallTargetY）
+     * @param y 本帧希望凋灵所处的 Y 坐标（下坠过程中为逐帧递减值，触地后为 fallTargetY）
      *
      * <p>为什么必须清 hasDesired：否则本帧更早登记过的 desired（例如 applyAltitude 的高度修正）
      * 会走 desired 分支、绕过这里设定的坠落作用点，让下坠被别的逻辑改写或抵消。
@@ -421,11 +421,11 @@ public final class WitherBrain {
     }
 
     /**
-     * 用向下的射线探出凋零正下方的可站立地面高度，作为入场坠落的落点。
+     * 用向下的射线探出凋灵正下方的可站立地面高度，作为入场坠落的落点。
      *
      * @return 射线命中的 Y；未命中时返回 起点Y - PHASE2_ENTRY_FALL_MAX_DEPTH（即最大探测深度处）
      *
-     * <p>为什么用射线而不是 onGround()：凋零碰撞箱宽约 3.5 格，且常悬在水面或可穿方块之上，
+     * <p>为什么用射线而不是 onGround()：凋灵碰撞箱宽约 3.5 格，且常悬在水面或可穿方块之上，
      * onGround() 的判定在这种体型下会飘；ClipContext.Block.COLLIDER 只认实体碰撞方块、
      * Fluid.NONE 忽略流体，得到的才是玩家真正能站的地面。
      * <p>最后 Math.min(hit.y, from.y)：命中点高于自身时不向上取，避免出现「向上坠落」的荒谬结果。
@@ -443,10 +443,10 @@ public final class WitherBrain {
     }
 
     /**
-     * 完成二阶段入场落地：结束坠落、原地大爆炸、召唤凋灵骷髅、给凋零挂护甲、播入场视觉反馈，并重置行为冷却。
+     * 完成二阶段入场落地：结束坠落、原地大爆炸、召唤凋灵骷髅、给凋灵挂护甲、播入场视觉反馈，并重置行为冷却。
      *
      * <p>调用时机：坠落触地停顿结束（由 handlePhaseTwoFall() 触发）；未启用入场坠落时由 enterPhaseTwo() 直接调用。
-     * <p>副作用：fallActive / fallPauseTicks / fallTicksLeft 归零；introTicks 置为 PHASE2_INTRO_TICKS 让凋零随后
+     * <p>副作用：fallActive / fallPauseTicks / fallTicksLeft 归零；introTicks 置为 PHASE2_INTRO_TICKS 让凋灵随后
      * 有一段入场定格；三种行为冷却清零，使入场后能立刻起手；护甲一旦挂上会反弹一切投射物。
      * <p>召唤数量在 PHASE2_SKELETON_SPAWN_MIN~MAX 间随机。
      */
@@ -473,14 +473,14 @@ public final class WitherBrain {
 
         introTicks = WitherConfig.PHASE2_INTRO_TICKS;
 
-        NewMod.LOGGER.info("[凋零] 凋灵 {} 二阶段入场完成：已触地并爆炸（召唤骷髅 {} 只，随后入场定格 {}tick）",
+        NewMod.LOGGER.info("[凋灵] 凋灵 {} 二阶段入场完成：已触地并爆炸（召唤骷髅 {} 只，随后入场定格 {}tick）",
                 wither.getUUID(), wanted, WitherConfig.PHASE2_INTRO_TICKS);
     }
 
     /**
      * 二阶段入场坠落是否正在进行，供客户端表现/调试查询，不参与任何决策。
      *
-     * @return true 表示凋零正处在入场下坠或触地停顿阶段
+     * @return true 表示凋灵正处在入场下坠或触地停顿阶段
      */
     public boolean isPhaseTwoFalling() {
         return fallActive;
@@ -496,7 +496,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 二阶段姿态修正：把凋零维持在「贴近目标但离地 2~3 格」的高度，让玩家的近战武器够得着。
+     * 二阶段姿态修正：把凋灵维持在「贴近目标但离地 2~3 格」的高度，让玩家的近战武器够得着。
      *
      * <p>调用时机：tick() 位移接管段的二阶段分支，紧跟在 PhaseTwoLogic.tick(this) 的行为派发之后。
      * <p>副作用：经 moveBy() 登记水平位移、经 applyAltitude() 修正高度，两者都会改写 desired 坐标。
@@ -565,7 +565,7 @@ public final class WitherBrain {
      * <p>副作用：苏醒期间每帧 stopMoving()（不登记 desired，等价原地钉住）；用 awakeningAnnounced
      * 保证「进入苏醒 / 苏醒结束」各只写一条日志。
      *
-     * @return true 表示凋零仍在出生苏醒期，tick() 应立即 return
+     * @return true 表示凋灵仍在出生苏醒期，tick() 应立即 return
      */
     private boolean updateAwakening() {
         if (!isAwakening()) {
@@ -573,7 +573,7 @@ public final class WitherBrain {
             // 苏醒刚结束的这一帧补一条日志，随后本帧交还给正常战斗流程（返回 false）。
             if (awakeningAnnounced) {
                 awakeningAnnounced = false;
-                NewMod.LOGGER.info("[凋零/诊断] 凋灵 {} 出生苏醒结束：进入一阶段战斗（血量 {}/{}）",
+                NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 出生苏醒结束：进入一阶段战斗（血量 {}/{}）",
                         wither.getUUID(), (float) wither.getHealth(),
                         (float) wither.getMaxHealth());
             }
@@ -581,7 +581,7 @@ public final class WitherBrain {
         }
         if (!awakeningAnnounced) {
             awakeningAnnounced = true;
-            NewMod.LOGGER.info("[凋零/诊断] 凋灵 {} 进入出生苏醒：剩余 {} tick —— 钉在原地，不评估阶段、不放技能、不射击、不回血",
+            NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 进入出生苏醒：剩余 {} tick —— 钉在原地，不评估阶段、不放技能、不射击、不回血",
                     wither.getUUID(), wither.getInvulnerableTicks());
         }
         stopMoving();
@@ -589,7 +589,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 凋零是否处于出生苏醒期，判据是原版 invulnerableTicks>0。
+     * 凋灵是否处于出生苏醒期，判据是原版 invulnerableTicks>0。
      * 该字段只负责出生苏醒，与后续冲锋无关 —— 清零它并不能压制冲锋，别把它当成「通用演出开关」。
      *
      * @return true 表示仍处于激活动画中
@@ -610,7 +610,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 把凋零的高度钉到「地面高度 + 期望离地高度」，是高度控制的统一入口（水平位移不在这里做）。
+     * 把凋灵的高度钉到「地面高度 + 期望离地高度」，是高度控制的统一入口（水平位移不在这里做）。
      *
      * <p>调用时机：二阶段每帧由 phaseTwoMovement() 调用；一阶段由 PhaseOneLogic 风筝时调用。
      * <p>副作用：setPos 改写 y、清零 deltaMovement/hasImpulse/fallDistance，最后 snapshotDesired() 登记本帧坐标。
@@ -651,10 +651,10 @@ public final class WitherBrain {
     }
 
     /**
-     * 入场定格处理：introTicks>0 期间凋零原地不动，只保持朝目标转向。
+     * 入场定格处理：introTicks>0 期间凋灵原地不动，只保持朝目标转向。
      *
      * <p>调用时机：tick() 在 tickHeadShotCds() 与 faceTarget() 之后调用。
-     * <p>副作用：递减 introTicks；stopMoving() 不登记 desired，等价于把凋零钉回本帧起点。
+     * <p>副作用：递减 introTicks；stopMoving() 不登记 desired，等价于把凋灵钉回本帧起点。
      * <p>写入者：landPhaseTwoEntry() 用 PHASE2_INTRO_TICKS 设定，调试指令可将它清零以立刻解除定格。
      *
      * @return true 表示本帧仍在定格中，tick() 应立即 return
@@ -671,10 +671,10 @@ public final class WitherBrain {
     }
 
     /**
-     * 把凋零的朝向（视线/头部/身体）强制对齐到当前目标所在的水平方向。
+     * 把凋灵的朝向（视线/头部/身体）强制对齐到当前目标所在的水平方向。
      *
      * <p>调用时机：tick() 每帧一次；坠落分支与入场定格分支内部还会额外各调一次。
-     * <p>原因：本类接管位移后原版 AI 不再自行转向，若不手动对齐，凋零会背对目标发射头颅。
+     * <p>原因：本类接管位移后原版 AI 不再自行转向，若不手动对齐，凋灵会背对目标发射头颅。
      * <p>副作用：写 setYRot / setYHeadRot / yBodyRot；目标为空、或与目标水平距离²不足 1e-4 时直接返回，
      * 避免在正上/正下方时算出无意义的偏航角。
      */
@@ -714,7 +714,7 @@ public final class WitherBrain {
 
     /**
      * 立即结束入场定格（把 introTicks 清零），供调试或特殊脚本使用。
-     * 副作用：下一帧 handleIntro() 不再早退，凋零立刻恢复行为派发。
+     * 副作用：下一帧 handleIntro() 不再早退，凋灵立刻恢复行为派发。
      */
     public void forceClearIntroInvulnerability() {
         introTicks = 0;
@@ -737,7 +737,7 @@ public final class WitherBrain {
                 && ratio > WitherConfig.PHASE2_THRESHOLD) {
             phase2 = false;
             active = null;
-            NewMod.LOGGER.debug("[凋零] 凋灵 {} 血量回到阈值以上，退回一阶段", wither.getUUID());
+            NewMod.LOGGER.debug("[凋灵] 凋灵 {} 血量回到阈值以上，退回一阶段", wither.getUUID());
         }
     }
 
@@ -752,7 +752,7 @@ public final class WitherBrain {
     private void enterPhaseTwo() {
 
         if (phaseTwoEntered) {
-            NewMod.LOGGER.debug("[凋零] 凋灵 {} 忽略重复的二阶段触发", wither.getUUID());
+            NewMod.LOGGER.debug("[凋灵] 凋灵 {} 忽略重复的二阶段触发", wither.getUUID());
             phase2 = true;
             return;
         }
@@ -770,7 +770,7 @@ public final class WitherBrain {
             fallTicksLeft = WitherConfig.PHASE2_ENTRY_FALL_MAX_TICKS;
             fallPauseTicks = 0;
             fallTargetY = probeGroundY();
-            NewMod.LOGGER.info("[凋零] 凋灵 {} 进入二阶段过渡：原地竖直坠落到地面后爆炸（起点 Y={}，探测到的地面 Y={}）",
+            NewMod.LOGGER.info("[凋灵] 凋灵 {} 进入二阶段过渡：原地竖直坠落到地面后爆炸（起点 Y={}，探测到的地面 Y={}）",
                     wither.getUUID(), wither.getY(), fallTargetY);
             return;
         }
@@ -809,9 +809,9 @@ public final class WitherBrain {
      * 自然回血：高欲望时按 REGEN_HIGH_DESIRE_PER_TICK、否则按 REGEN_NORMAL_PER_TICK（单位：点血/tick）。
      *
      * <p>调用时机：tick() 每帧，且必须排在 updatePhase() 之前（理由见 tick() 的顺序说明）。
-     * <p>前置条件：凋零存活、不在入场定格（introTicks<=0）、血量未满，任一不满足即直接返回不回血。
+     * <p>前置条件：凋灵存活、不在入场定格（introTicks<=0）、血量未满，任一不满足即直接返回不回血。
      * <p>副作用：heal() 后立刻调用 clampRegenToPhaseTwo()，把二阶段血量压在阈值以下，
-     * 保证「回血不会把凋零顶回一阶段」。
+     * 保证「回血不会把凋灵顶回一阶段」。
      */
     private void updateRegen() {
         if (wither.getHealth() <= 0.0F || wither.isDeadOrDying()) {
@@ -836,7 +836,7 @@ public final class WitherBrain {
     /**
      * 二阶段回血封顶：把血量压到「阈值 × 最大血量 - REGEN_PHASE2_MARGIN」以下。
      *
-     * <p>为什么必须有：否则回血会把血量推过二阶段阈值，updatePhase() 随即把凋零判回一阶段，
+     * <p>为什么必须有：否则回血会把血量推过二阶段阈值，updatePhase() 随即把凋灵判回一阶段，
      * 下一帧回血失败又判进二阶段 —— 每 2 tick 抖动一次并反复触发入场大爆炸。
      * <p>调用时机：updateRegen() 回血之后；从未进入过二阶段（!phase2 && !phaseTwoEntered）时直接返回。
      */
@@ -870,10 +870,10 @@ public final class WitherBrain {
 
             staggerHeadShotCds(WitherConfig.RAGE_MAIN_SHOT_INTERVAL_TICKS,
                     WitherConfig.RAGE_SIDE_SHOT_INTERVAL_MAX_TICKS);
-            NewMod.LOGGER.info("[凋零] 凋灵 {} 进入狂暴模式（目标血量 ≤50%）", wither.getUUID());
+            NewMod.LOGGER.info("[凋灵] 凋灵 {} 进入狂暴模式（目标血量 ≤50%）", wither.getUUID());
         } else if (!shouldRage && rageMode) {
             rageMode = false;
-            NewMod.LOGGER.info("[凋零] 凋灵 {} 退出狂暴模式（目标血量回到 >50%）", wither.getUUID());
+            NewMod.LOGGER.info("[凋灵] 凋灵 {} 退出狂暴模式（目标血量回到 >50%）", wither.getUUID());
         }
     }
 
@@ -1005,12 +1005,12 @@ public final class WitherBrain {
         if (crashSoftCd > 0) crashSoftCd--;
     }
 
-    /** @return 本脑所服务的凋零实体，供其它类查询（只读，不改变本脑状态）。 */
+    /** @return 本脑所服务的凋灵实体，供其它类查询（只读，不改变本脑状态）。 */
     public WitherBoss wither() {
         return wither;
     }
 
-    /** @return 凋零所在维度，供其它类做射线检测与实体查询。 */
+    /** @return 凋灵所在维度，供其它类做射线检测与实体查询。 */
     public Level level() {
         return level;
     }
@@ -1103,7 +1103,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 让所有冷却已就绪的头各发射一发凋零之首，是压制弹幕/连射技能的核心发射器。
+     * 让所有冷却已就绪的头各发射一发凋灵之首，是压制弹幕/连射技能的核心发射器。
      *
      * <p>调用时机：技能行为每帧调用（如 BarrageBehavior）；平A不走这里，走 tickIdleAttack()。
      * <p>副作用：对每个 headShotCd==0 的头调用 SkullVolley.fireFromHead()，随即把该头冷却重置为
@@ -1134,7 +1134,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 清空本模组登记的凋零之首标记，用于技能被中断或收尾时避免残留弹幕继续生效。
+     * 清空本模组登记的凋灵之首标记，用于技能被中断或收尾时避免残留弹幕继续生效。
      * 副作用：直接调用 SkullVolley.discardAllMarkers()，属于全局清理。
      */
     public void suppressOwnVolleys() {
@@ -1156,7 +1156,7 @@ public final class WitherBrain {
 
     /**
      * 反转风筝绕行方向符号；由 PhaseOneLogic 在撞墙或绕行超时后调用，
-     * 否则凋零会一直朝同一侧贴墙磨蹭。
+     * 否则凋灵会一直朝同一侧贴墙磨蹭。
      */
     public void flipStrafeSign() {
         strafeSign = -strafeSign;
@@ -1387,14 +1387,14 @@ public final class WitherBrain {
     }
 
     /**
-     * @return true 表示这只凋零至少经历过一次二阶段入场（之后不会再次触发坠落/爆炸/召唤），
+     * @return true 表示这只凋灵至少经历过一次二阶段入场（之后不会再次触发坠落/爆炸/召唤），
      *         与「当前是否处于二阶段」（phase2）不是同一件事
      */
     public boolean hasEnteredPhaseTwo() {
         return phaseTwoEntered;
     }
 
-    /** @return true 表示入场定格仍在进行（introTicks>0），期间凋零原地不动且不派发行为。 */
+    /** @return true 表示入场定格仍在进行（introTicks>0），期间凋灵原地不动且不派发行为。 */
     public boolean isIntroPlaying() {
         return introTicks > 0;
     }
@@ -1410,10 +1410,10 @@ public final class WitherBrain {
     }
 
     /**
-     * 静态查询某只凋零是否处于二阶段（不创建行为脑，只读已存在的登记项）。
+     * 静态查询某只凋灵是否处于二阶段（不创建行为脑，只读已存在的登记项）。
      *
-     * @param wither 目标凋零实体
-     * @return true 表示该凋零的二阶段标志为真；未登记行为脑时返回 false
+     * @param wither 目标凋灵实体
+     * @return true 表示该凋灵的二阶段标志为真；未登记行为脑时返回 false
      */
     public static boolean isPhaseTwoStatic(WitherBoss wither) {
         WitherBrain b = BRAINS.get(wither.getUUID());
@@ -1487,7 +1487,7 @@ public final class WitherBrain {
             behaviorLog.remove(0);
         }
         if (WitherConfig.DEBUG_LOG_BEHAVIOR_SEQUENCE) {
-            NewMod.LOGGER.info("[凋零/行为序列] {} 欲望={} 可用CD(弹幕={} 冲撞={} 软={})",
+            NewMod.LOGGER.info("[凋灵/行为序列] {} 欲望={} 可用CD(弹幕={} 冲撞={} 软={})",
                     name, desire >= 0.5D ? "高" : "消耗", barrageCd, crashCd, crashSoftCd);
         }
     }
@@ -1508,7 +1508,7 @@ public final class WitherBrain {
      *   <li>原版仇恨落在合法玩家（存活、非创造、非旁观）→ 直接用；</li>
      *   <li>原版仇恨不可用 → 取周围 64 格内最近的合法玩家；</li>
      *   <li>仍无 → 原版仇恨若是其它存活且非玩家的活体，作为兜底目标；</li>
-     *   <li>都没有 → 返回 null（行为池随总闸门整体停摆，凋零原地悬停）。</li>
+     *   <li>都没有 → 返回 null（行为池随总闸门整体停摆，凋灵原地悬停）。</li>
      * </ol>
      *
      * <p>不自己扫描生物、只消费原版 getTarget()，因此「玩家优先」由原版 targetSelector 天然保证，
@@ -1540,7 +1540,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 在凋零碰撞箱外扩 64 格的范围内找最近的合法玩家，是索敌第②级的实现。
+     * 在凋灵碰撞箱外扩 64 格的范围内找最近的合法玩家，是索敌第②级的实现。
      *
      * <p>用 boundingBox.inflate 限定半径而非全维度扫描：开销固定，不随世界实体数量增长。
      *
@@ -1567,7 +1567,7 @@ public final class WitherBrain {
      * 判断玩家是否为有效攻击目标。
      *
      * @param sp 候选玩家
-     * @return true 表示存活、非创造、非旁观；创造/旁观玩家即使站在身前也不会被凋零锁为仇恨
+     * @return true 表示存活、非创造、非旁观；创造/旁观玩家即使站在身前也不会被凋灵锁为仇恨
      */
     private static boolean valid(ServerPlayer sp) {
         return sp.isAlive() && !sp.isCreative() && !sp.isSpectator();
@@ -1612,7 +1612,7 @@ public final class WitherBrain {
     /**
      * 停止移动：只把速度与冲量清零，不改变坐标、也不登记 desired。
      *
-     * <p>因此若本帧没有其它位移登记，凋零会被 mixin 钉回本帧起点（等效原地不动）——
+     * <p>因此若本帧没有其它位移登记，凋灵会被 mixin 钉回本帧起点（等效原地不动）——
      * 这正是「入场定格」「出生苏醒」想要的静止效果。
      */
     public void stopMoving() {
@@ -1638,11 +1638,11 @@ public final class WitherBrain {
     }
 
     /**
-     * 把凋零当前坐标登记为本帧的 desired 坐标，并置 hasDesired=true。
+     * 把凋灵当前坐标登记为本帧的 desired 坐标，并置 hasDesired=true。
      *
      * <p>调用时机：moveBy / riseStep / applyAltitude 在 setPos 之后调用。
      * <p>语义：等价于声明「本帧我确实想停在/去到这个坐标」，
-     * mixin 侧据此把凋零钉到 desired* 而不是 base*。
+     * mixin 侧据此把凋灵钉到 desired* 而不是 base*。
      */
     private void snapshotDesired() {
         desiredX = wither.getX();
@@ -1652,12 +1652,12 @@ public final class WitherBrain {
     }
 
     /**
-     * 坐标所有权的落地执行：把凋零钉到本帧登记的目标坐标。
+     * 坐标所有权的落地执行：把凋灵钉到本帧登记的目标坐标。
      *
      * <p>调用时机：由 WitherBossMovementMixin 注入原版 aiStep(m_8107_) 的 TAIL，经 enforceMovement() 每帧调用一次。
-     * <p>逻辑：armed 未置真直接返回（还没被状态机跑过的新凋零不能钉）；随后 armed 置假，保证每 tick 只钉一次；
+     * <p>逻辑：armed 未置真直接返回（还没被状态机跑过的新凋灵不能钉）；随后 armed 置假，保证每 tick 只钉一次；
      * hasDesired 为真就钉 desired*，否则钉 base*；最后清零速度/冲量/摔落距离。
-     * <p>为什么一定要清零速度：否则原版速度会在下一帧把凋零从钉好的位置上拖走，坐标控制失效。
+     * <p>为什么一定要清零速度：否则原版速度会在下一帧把凋灵从钉好的位置上拖走，坐标控制失效。
      */
     public void enforceNow() {
 
@@ -1677,14 +1677,14 @@ public final class WitherBrain {
     }
 
     /**
-     * mixin 侧的静态入口：判断这只凋零该不该被钉，再转发给对应行为脑的 enforceNow()。
+     * mixin 侧的静态入口：判断这只凋灵该不该被钉，再转发给对应行为脑的 enforceNow()。
      *
      * <p>调用时机：WitherBossMovementMixin 注入原版 aiStep(m_8107_) 的 TAIL。
-     * <p>前置条件：OUR_MOVEMENT_TAKEOVER 开启；客户端实例、已死亡与已移除的凋零一律跳过
+     * <p>前置条件：OUR_MOVEMENT_TAKEOVER 开启；客户端实例、已死亡与已移除的凋灵一律跳过
      * （客户端本地无需钉位置；死亡/移除阶段钉位置会干扰演出与清理流程）。
-     * <p>副作用：调用 brain.enforceNow()，即改写凋零坐标为 desired* 或 base* 并清零速度。
+     * <p>副作用：调用 brain.enforceNow()，即改写凋灵坐标为 desired* 或 base* 并清零速度。
      *
-     * @param wither 注入点上的凋零实例
+     * @param wither 注入点上的凋灵实例
      */
     public static void enforceMovement(WitherBoss wither) {
         if (!WitherConfig.OUR_MOVEMENT_TAKEOVER) {
@@ -1787,7 +1787,7 @@ public final class WitherBrain {
     /**
      * 调试指令入口：强制退回一阶段。
      * 副作用：清空 phase2、active、入场定格；把 phaseTwoEntered 复位 —— 与自然回退不同，
-     * 复位后允许再次触发二阶段入场演出；同时恢复凋零护甲。
+     * 复位后允许再次触发二阶段入场演出；同时恢复凋灵护甲。
      */
     public void debugForcePhaseOne() {
         phase2 = false;
@@ -1846,7 +1846,7 @@ public final class WitherBrain {
     }
 
     /**
-     * 调试指令入口：把两种行为冷却同时设为指定值，用来观察冷却期内凋零的行为。
+     * 调试指令入口：把两种行为冷却同时设为指定值，用来观察冷却期内凋灵的行为。
      * @param ticks 冷却，单位 tick；同时写入弹幕冷却与冲撞硬冷却，软冷却清零，active 置空
      */
     public void debugForceCooldowns(int ticks) {

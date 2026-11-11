@@ -1,5 +1,5 @@
 /*
- * 【文件职责】模组入口类：注册本模组自有的物品与创造页，并在构造器里把凋零 Boss 的运行时事件装配上总线。
+ * 【文件职责】模组入口类：注册本模组自有的物品与创造页，并在构造器里把凋灵 Boss 的运行时事件装配上总线。
  * 【所属模块】模组入口（com.fusionwither 包根）。
  * 【协作关系】@Mod 注解让 Forge 在加载期实例化本类；构造器先取得 MOD 总线把 ITEMS / CREATIVE_MODE_TABS
  *   两个 DeferredRegister 挂上去，再调用 ModSetup.registerGameBusEvents() 把 WitherBossHandler 的运行时回调
@@ -48,7 +48,7 @@ public class NewMod {
     /** 模组命名空间。改身份时这里与 {@code gradle.properties} 的 {@code mod_id} 必须同步修改。 */
     public static final String MODID = "fusion_wither";
 
-    /** 模组日志器。全模组统一用它打印，便于按日志前缀过滤凋零相关信息。 */
+    /** 模组日志器。全模组统一用它打印，便于按日志前缀过滤凋灵相关信息。 */
     public static final Logger LOGGER = LogUtils.getLogger();
 
     /**
@@ -63,7 +63,7 @@ public class NewMod {
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
     /**
-     * 模组专属创造模式标签页，排在原版「战斗」页之后（凋零相关内容与战斗分类相邻，方便查找）。
+     * 模组专属创造模式标签页，排在原版「战斗」页之后（凋灵相关内容与战斗分类相邻，方便查找）。
      *
      * <p><b>为什么用原版下界之星当图标：</b>只是为了满足 {@code CreativeModeTab.builder()} 的必填项，
      * 让标签页能建出来；等本模组有正式物品后，把这个占位图标换成该物品，并在
@@ -86,7 +86,7 @@ public class NewMod {
      * {@link DeferredRegister#register(IEventBus)} 注册的是注册表填充事件，属于模组生命周期事件，
      * 只有 MOD 总线才会在正确的时机触发它们；挂错总线会导致注册项缺失。
      *
-     * <p><b>为什么运行时事件交给 {@link ModSetup}：</b>凋零的行为状态机、伤害改写、弹射物拦截等
+     * <p><b>为什么运行时事件交给 {@link ModSetup}：</b>凋灵的行为状态机、伤害改写、弹射物拦截等
      * 全部是游戏总线事件，集中由 {@link ModSetup#registerGameBusEvents()} 装配，入口类只喊一句，
      * 保证「入口」与「运行时逻辑」两边互不引用。
      *
@@ -98,16 +98,16 @@ public class NewMod {
         CREATIVE_MODE_TABS.register(modBus);
 
         // 可调参数的配置文件：COMMON 类型在客户端与服务端都会生成，
-        // 与凋零的判定/演出逻辑同时存在于两侧，因此不能用 CLIENT/SERVER 类型。
+        // 与凋灵的判定/演出逻辑同时存在于两侧，因此不能用 CLIENT/SERVER 类型。
         // 用注入的 context 注册，而不是已标记待删除的 ModLoadingContext.get()。
         context.registerConfig(ModConfig.Type.COMMON, WitherConfig.SPEC);
         // 配置在加载与重载时都会触发，两个时机都要把值写回 WitherConfig。
         modBus.addListener(NewMod::onConfigLoad);
 
-        // 凋零的运行时事件挂游戏总线（MOD 总线只放注册与生命周期类事件）
+        // 凋灵的运行时事件挂游戏总线（MOD 总线只放注册与生命周期类事件）
         ModSetup.registerGameBusEvents();
 
-        LOGGER.info("[凋零] 凋灵 Boss 已装载：行为状态机 + 随机行为池");
+        LOGGER.info("[凋灵] 凋灵 Boss 已装载：行为状态机 + 随机行为池");
         logBuildInfo();
         logSelftest();
     }
@@ -128,7 +128,7 @@ public class NewMod {
      */
     private static void onConfigLoad(ModConfigEvent event) {
         WitherConfig.bind();
-        LOGGER.info("[凋零/配置] 已载入可调参数（{}）", event.getConfig().getFileName());
+        LOGGER.info("[凋灵/配置] 已载入可调参数（{}）", event.getConfig().getFileName());
     }
 
     /**
@@ -145,13 +145,13 @@ public class NewMod {
     private static void logBuildInfo() {
         try (var in = NewMod.class.getResourceAsStream("/fusion_wither-build-info.txt")) {
             if (in == null) {
-                LOGGER.warn("[凋零/版本] 未找到构建信息（可能是 IDE 直接运行）");
+                LOGGER.warn("[凋灵/版本] 未找到构建信息（可能是 IDE 直接运行）");
                 return;
             }
             var text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
-            LOGGER.info("[凋零/版本] 构建指纹 = {}", text.replace("\n", "  "));
+            LOGGER.info("[凋灵/版本] 构建指纹 = {}", text.replace("\n", "  "));
         } catch (Exception e) {
-            LOGGER.warn("[凋零/版本] 读取构建信息失败：{}", e.toString());
+            LOGGER.warn("[凋灵/版本] 读取构建信息失败：{}", e.toString());
         }
     }
 
@@ -164,17 +164,17 @@ public class NewMod {
      * <p><b>副作用：</b>仅打印日志，不写任何字段；数值来自静态常量，因此可在构造器里安全调用。
      */
     private static void logSelftest() {
-        LOGGER.info("[凋零/自检] 凋灵最大生命={} 阶段二阈值={} 欲望阈值={} 欲望防抖={}tick",
+        LOGGER.info("[凋灵/自检] 凋灵最大生命={} 阶段二阈值={} 欲望阈值={} 欲望防抖={}tick",
                 com.fusionwither.wither.WitherConfig.WITHER_MAX_HEALTH,
                 com.fusionwither.wither.WitherConfig.PHASE2_THRESHOLD,
                 com.fusionwither.wither.WitherConfig.DESIRE_PLAYER_HP_THRESHOLD,
                 com.fusionwither.wither.WitherConfig.DESIRE_SWITCH_COOLDOWN_TICKS);
-        LOGGER.info("[凋零/自检] 二阶段权重：玩家>50% 冲撞{}%/弹幕{}% ，玩家<=50% 冲撞{}%/弹幕{}%",
+        LOGGER.info("[凋灵/自检] 二阶段权重：玩家>50% 冲撞{}%/弹幕{}% ，玩家<=50% 冲撞{}%/弹幕{}%",
                 com.fusionwither.wither.WitherConfig.WEIGHT_CRASH_NORMAL,
                 com.fusionwither.wither.WitherConfig.WEIGHT_BARRAGE_NORMAL,
                 com.fusionwither.wither.WitherConfig.WEIGHT_CRASH_HIGH,
                 com.fusionwither.wither.WitherConfig.WEIGHT_BARRAGE_HIGH);
-        LOGGER.info("[凋零/自检] 行为CD={}~{}tick 冲撞软CD={}tick 上升={}~{}格 骷髅上限={}",
+        LOGGER.info("[凋灵/自检] 行为CD={}~{}tick 冲撞软CD={}tick 上升={}~{}格 骷髅上限={}",
                 com.fusionwither.wither.WitherConfig.BEHAVIOR_COOLDOWN_MIN_TICKS,
                 com.fusionwither.wither.WitherConfig.BEHAVIOR_COOLDOWN_MAX_TICKS,
                 com.fusionwither.wither.WitherConfig.CRASH_SOFT_COOLDOWN_TICKS,

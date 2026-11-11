@@ -59,7 +59,7 @@ public final class CrashBehavior extends BaseBehavior {
         return "冲撞";
     }
 
-    /** 开始：复位到蓄力段并锁定冲锋方向，同时把凋零朝向也转向该方向（视觉上能看出要冲哪）。 */
+    /** 开始：复位到蓄力段并锁定冲锋方向，同时把凋灵朝向也转向该方向（视觉上能看出要冲哪）。 */
     @Override
     protected void onBegin() {
         state = State.WINDUP;
@@ -103,7 +103,7 @@ public final class CrashBehavior extends BaseBehavior {
 
                 // 【实机反馈新增】冲锋途中**实时破坏沿途方块**，
                 // 使「冲过来撞穿一切」有实感，而不是撞墙就停。
-                // 破坏仅限凋零本身能破坏的方块，且受黑名单/保护前缀约束。
+                // 破坏仅限凋灵本身能破坏的方块，且受黑名单/保护前缀约束。
                 if (WitherConfig.CRASH_BREAK_BLOCKS) {
                     CrashEffects.breakAlongCharge(brain().wither(), brain().level());
                 }
@@ -122,7 +122,7 @@ public final class CrashBehavior extends BaseBehavior {
                 if (blockedTicks >= 2 || travelled >= WitherConfig.CRASH_MAX_DISTANCE) {
                     // 【诊断】冲锋位移与落点 —— 实测时据此核对「是否真的全速冲出去」。
                     com.fusionwither.NewMod.LOGGER.info(
-                            "[凋零/诊断] 冲撞结束：位移={} 格，落点=({}, {}, {})，撞墙={}",
+                            "[凋灵/诊断] 冲撞结束：位移={} 格，落点=({}, {}, {})，撞墙={}",
                             String.format("%.1f", travelled),
                             String.format("%.1f", brain().wither().getX()),
                             String.format("%.1f", brain().wither().getY()),
@@ -193,7 +193,7 @@ public final class CrashBehavior extends BaseBehavior {
                 // 垂直行为完全脱离本模组约束（表现为「垂直上升、收不回来」）。
                 // 改为每 tick 直接抬坐标后，上升距离只由本模组决定：到达 riseTargetY 即结束，
                 // 随后 applyAltitude 立刻接回高度控制。同时不设 hasImpulse ——
-                // 它会在原版 move() 里关闭方块碰撞检测，使凋零穿过天花板。
+                // 它会在原版 move() 里关闭方块碰撞检测，使凋灵穿过天花板。
                 brain().riseStep(WitherConfig.CRASH_RISE_SPEED);
                 // 达标或超时即结束。超时是兜底：被天花板/方块挡住时 getY() 永远不达标。
                 if (brain().wither().getY() >= riseTargetY || --riseTimeout <= 0) {
@@ -203,7 +203,7 @@ public final class CrashBehavior extends BaseBehavior {
                     // 到达Y 应 ≈ 上一次 IMPACT 日志的落点Y + 8~12，随后由 applyAltitude
                     // 以每 tick ≤0.3 格落回「地面 + 2.5」。
                     com.fusionwither.NewMod.LOGGER.info(
-                            "[凋零/诊断] 上升结束：到达Y={} 目标Y={}",
+                            "[凋灵/诊断] 上升结束：到达Y={} 目标Y={}",
                             String.format("%.1f", brain().wither().getY()),
                             String.format("%.1f", riseTargetY));
                 }
@@ -226,7 +226,7 @@ public final class CrashBehavior extends BaseBehavior {
      *
      * @param p 被判定点（玩家位置）
      * @param a 线段起点（冲锋起点）
-     * @param b 线段终点（凋零当前位置）
+     * @param b 线段终点（凋灵当前位置）
      * @return 点到线段的水平最短距离（格）；线段退化（a≈b）时返回点线距离
      */
     private static double distanceToSegment(Vec3 p, Vec3 a, Vec3 b) {

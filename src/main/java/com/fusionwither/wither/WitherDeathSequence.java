@@ -1,5 +1,5 @@
 /*
- * 【文件职责】凋零的「死亡演出」状态机：把致死一击改写为"刚好压到 1.0 血"，演出期间
+ * 【文件职责】凋灵的「死亡演出」状态机：把致死一击改写为"刚好压到 1.0 血"，演出期间
  *             血钉 1.0 + 全程免伤 + 发光 + 白光粒子 + 走低的哀嚎，最后按固定顺序爆炸
  *             并喂一记真实致命伤，交还原版死亡流程收场。
  * 【所属模块】wither 核心。
@@ -31,11 +31,11 @@ import java.util.UUID;
  * 基岩版式死亡演出状态机：<b>浑身发白光 → 拉伸变宽 → 爆炸死亡</b>。
  *
  * <p><b>为什么要自己写这一套：</b>这三段在 Java 版原版里<b>不存在</b> ——
- * 原版凋零血量归零就是普通死亡（尸体变红倒地 + 掉落），既没有白光也没有形变。
+ * 原版凋灵血量归零就是普通死亡（尸体变红倒地 + 掉落），既没有白光也没有形变。
  * 因此整段演出必须自建状态机，把"真正的死亡"推迟到演出结束之后。</p>
  *
  * <p><b>【最关键的架构决定：不能只取消死亡事件】</b>
- * 最初的想法是"取消 {@code LivingDeathEvent}，让凋零多活几秒演完动画"。
+ * 最初的想法是"取消 {@code LivingDeathEvent}，让凋灵多活几秒演完动画"。
  * 这是错的，原因是该事件触发时血量<b>已经是 0</b>：
  * <ul>
  *   <li>血量 0 意味着 {@code isDeadOrDying()} 成立，下一 tick 原版照样走
@@ -51,7 +51,7 @@ import java.util.UUID;
  *   <li><b>夺取死亡权</b>（{@link #filterDamage}）：在伤害事件
  *       {@code LivingDamageEvent} 里，把致死的那一击的 {@code setAmount}
  *       改成"<b>刚好把血量压到 1.0</b>"而不是压到 0。原版拿到的是一个小额伤害，
- *       于是 {@code die()} 不会被调用，凋零"活着但只剩一丝血" ——
+ *       于是 {@code die()} 不会被调用，凋灵"活着但只剩一丝血" ——
  *       这就是"死亡权被我们拿走"的含义。</li>
  *   <li><b>演出中</b>（{@link #tick}）：每 tick 把血量钉在
  *       {@link WitherConfig#DEATH_ANIM_KEEP_HEALTH}（1.0）、重设发光标记、放白色粒子、
@@ -76,13 +76,13 @@ import java.util.UUID;
  * {@code com.fusionwither.client.WitherDeathRenderHandler}。服务端只负责把
  * "是否正在演出"这件事同步出去 —— 用的都是原版现成的同步字段：
  * 血量（{@code SynchedEntityData}）与发光标记（实体共享标志），
- * 因此不需要任何自定义封包，也不需要给凋零加新的 DataAccessor。</p>
+ * 因此不需要任何自定义封包，也不需要给凋灵加新的 DataAccessor。</p>
  */
 public final class WitherDeathSequence {
 
     /** 演出阶段。状态机只有三态，且只能单向推进（IDLE → PLAYING → ALLOW_DEATH）。 */
     public enum Stage {
-        /** 未开始（该凋零的默认态）。 */
+        /** 未开始（该凋灵的默认态）。 */
         IDLE,
         /** 演出进行中：血量钉住、全程免伤、发光、放白光粒子。 */
         PLAYING,
@@ -90,11 +90,11 @@ public final class WitherDeathSequence {
         ALLOW_DEATH
     }
 
-    /** 已开始的凋零 → 演出状态。与 {@link WitherBrain} 一样按 UUID 索引。
+    /** 已开始的凋灵 → 演出状态。与 {@link WitherBrain} 一样按 UUID 索引。
      *  <p>用 UUID 而不是实体引用，是为了不让这张表持有实体、阻碍它被回收。</p>*/
     private static final Map<UUID, WitherDeathSequence> ACTIVE = new HashMap<>();
 
-    /** 本次演出属于哪只凋零。 */
+    /** 本次演出属于哪只凋灵。 */
     private final WitherBoss wither;
     /** 构造时抓一份 Level，避免每 tick 取一次。 */
     private final Level level;
@@ -114,14 +114,14 @@ public final class WitherDeathSequence {
     /**
      * 私有构造，只能由 {@link #filterDamage} 在"致死一击"发生的瞬间创建。
      *
-     * <p><b>为什么私有 + 只在 filterDamage 里 new：</b>演出实例与凋零一一对应，
-     * 挂在 {@link #ACTIVE} 表上；入口收成一条保证"同一只凋零只会有一个实例"，
+     * <p><b>为什么私有 + 只在 filterDamage 里 new：</b>演出实例与凋灵一一对应，
+     * 挂在 {@link #ACTIVE} 表上；入口收成一条保证"同一只凋灵只会有一个实例"，
      * 避免多入口各自 new 出两份状态机。</p>
      *
      * <p><b>为什么构造时就缓存 level：</b>演出期间每 tick 都要往 level 发粒子与音效，
      * 缓存一次比每帧调 {@code wither.level()} 更省，也避开运行期取到别的实例的风险。</p>
      *
-     * @param wither 即将进入演出的凋零
+     * @param wither 即将进入演出的凋灵
      */
     private WitherDeathSequence(WitherBoss wither) {
         this.wither = wither;
@@ -150,7 +150,7 @@ public final class WitherDeathSequence {
      * <p><b>副作用：</b>可能创建演出实例并写入 {@link #ACTIVE}；
      * 会被动地两侧钳制血量（返回的伤害量决定最终血量）。</p>
      *
-     * @param wither 受击的凋零
+     * @param wither 受击的凋灵
      * @param source 伤害来源；致死时会记录在 {@link #pendingSource}，供收尾时复用
      * @param amount 本次伤害（{@code LivingDamageEvent.getAmount()}，
      *               已是扣完护甲与吸收、真正要减掉的值）
@@ -204,7 +204,7 @@ public final class WitherDeathSequence {
         // 那些由上面的 filterDamage 统一取消。
         wither.setInvulnerable(true);
 
-        NewMod.LOGGER.info("[凋零/诊断] 凋灵 {} 血量见底，进入死亡演出：{} tick —— 白光 + 拉伸变宽 + 持续哀嚎 + 爆炸，期间免除一切伤害",
+        NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 血量见底，进入死亡演出：{} tick —— 白光 + 拉伸变宽 + 持续哀嚎 + 爆炸，期间免除一切伤害",
                 wither.getUUID(), WitherConfig.DEATH_SEQUENCE_TICKS);
 
         // 持续音效的"起手"：低音调地放一次原版死亡音，把演出的开场定住。
@@ -260,7 +260,7 @@ public final class WitherDeathSequence {
      *
      * <p><b>副作用：</b>推进/结束演出（可能经 {@link #finish} 生成爆炸、造成致命伤、清表项）。</p>
      *
-     * @param wither 待检查的凋零
+     * @param wither 待检查的凋灵
      * @return true = 本帧处于死亡演出（或已放行死亡）中，调用方应立即返回
      */
     public static boolean tickFor(WitherBoss wither) {
@@ -281,7 +281,7 @@ public final class WitherDeathSequence {
      * 直到 WitherBossHandler 的死亡分支统一清理（与 {@link WitherBrain} 的生命周期一致）。</p>
      *
      * <p><b>为什么每帧都要 {@code setHealth}：</b>血量是演出的"锚"——它必须始终停在 1.0，
-     * 既不能被回血抬上去（那会让凋零看起来没在倒下），也绝不能漂到 0
+     * 既不能被回血抬上去（那会让凋灵看起来没在倒下），也绝不能漂到 0
      * （那会让 {@code isDeadOrDying()} 成立、原版提前走死亡路径）。</p>
      *
      * <p><b>副作用：</b>写血量、发光标记、{@code elapsed}/{@code ticksLeft}；
@@ -368,7 +368,7 @@ public final class WitherDeathSequence {
      * <p><b>音调如何下沉：</b>{@code pitch = START + (END - START) * progress}，
      * 即随进度从 {@code DEATH_SOUND_PITCH_START}（1.0）<b>线性</b>降到
      * {@code DEATH_SOUND_PITCH_END}（0.5）—— 整段听下来是"越鸣越沉"，
-     * 最后接上爆炸。这正是 BE 版凋零死亡音的形态，也是 Java 版原版那一声
+     * 最后接上爆炸。这正是 BE 版凋灵死亡音的形态，也是 Java 版原版那一声
      * 短促收场音衬托不出来的部分。</p>
      *
      * <p><b>副作用：</b>按间隔（{@code elapsed % 20 == 0}，即开场后第 20/40/60 帧）
@@ -394,7 +394,7 @@ public final class WitherDeathSequence {
      * <p><b>第一个参数传 {@code null} = 广播给所有能听到该位置的玩家</b>，
      * 与本项目 {@code VisualFeedback} 里既有的音效广播是同一套写法。</p>
      *
-     * <p><b>为什么音源取 {@code HOSTILE}：</b>凋零是敌对生物，音量衰减按该声道计算；
+     * <p><b>为什么音源取 {@code HOSTILE}：</b>凋灵是敌对生物，音量衰减按该声道计算；
      * 若用 {@code MASTER} 会被玩家的"敌对生物音量"设置忽略，音量与其它怪音不成比例。</p>
      *
      * <p><b>音高取 {@code getY() + 1.0}：</b>落在身体中段，而不是脚底 ——
@@ -419,8 +419,8 @@ public final class WitherDeathSequence {
      *   <li><b>关发光</b>（{@code setGlowingTag(false)}）：否则尸体会一直挂着白色描边
      *       （发光是持久标记），客户端也会一直按"演出中"继续形变；</li>
      *   <li><b>临时无敌 + 炸一炮</b>：先炸是为了"爆炸就是死亡那一刻"的观感，
-     *       但必须让凋零自己不受这一炸 —— 否则它会被自己的爆炸炸死，
-     *       那一击的击杀归属会记成"凋零自己"，玩家打空血条却拿不到归属与经验；</li>
+     *       但必须让凋灵自己不受这一炸 —— 否则它会被自己的爆炸炸死，
+     *       那一击的击杀归属会记成"凋灵自己"，玩家打空血条却拿不到归属与经验；</li>
      *   <li><b>解除无敌并清零 {@code invulnerableTime}</b>：原版在
      *       {@code invulnerableTime > 10} 时会直接丢弃伤害，而下面这一击是<b>唯一一次</b>
      *       真正的致命伤、必须落地，所以显式清零（解除无敌则是因为第 2 步刚把它置为 true）；</li>
@@ -432,7 +432,7 @@ public final class WitherDeathSequence {
      * </ol>
      *
      * <p><b>副作用：</b>生成一次爆炸（经 {@code CrashEffects.bigExplosion}，受 F-09 保护名单约束）、
-     * 关闭发光、解除无敌、清零无敌帧、把状态置为 ALLOW_DEATH、对凋零造成一次真实致命伤、
+     * 关闭发光、解除无敌、清零无敌帧、把状态置为 ALLOW_DEATH、对凋灵造成一次真实致命伤、
      * 写一行诊断日志。</p>
      */
     private void finish() {
@@ -440,7 +440,7 @@ public final class WitherDeathSequence {
 
         // ---- 第一段：爆炸（基岩版式死亡爆炸）----
         // 走 CrashEffects.bigExplosion → Level.explode，
-        // 因此 WitherBossHandler.onExplosionDetonate 会按"爆炸源实体是凋零"
+        // 因此 WitherBossHandler.onExplosionDetonate 会按"爆炸源实体是凋灵"
         // 把 F-09 保护名单（箱子/床/工作站点等）自动套上去，
         // 与冲撞、二阶段入场爆炸是同一道闸门。
         wither.setInvulnerable(true);
@@ -460,14 +460,14 @@ public final class WitherDeathSequence {
                 : wither.damageSources().genericKill();
         wither.hurt(src, Float.MAX_VALUE);
         if (!wither.isDeadOrDying()) {
-            // 记录下的那一击被原版判定免疫时（例如它是"凋零之首"——
-            // WitherBoss.hurt 对"来源实体是凋零"的伤害一律免疫），
+            // 记录下的那一击被原版判定免疫时（例如它是"凋灵之首"——
+            // WitherBoss.hurt 对"来源实体是凋灵"的伤害一律免疫），
             // 退回到原版 /kill 用的 genericKill：它带 BYPASSES_INVULNERABILITY，
             // 一定能落地。
             wither.hurt(wither.damageSources().genericKill(), Float.MAX_VALUE);
         }
 
-        NewMod.LOGGER.info("[凋零/诊断] 凋灵 {} 死亡演出结束：爆炸威力 {}，已放行原版死亡（掉落与击杀归属由原版 die() 完成，实际死亡={}）",
+        NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 死亡演出结束：爆炸威力 {}，已放行原版死亡（掉落与击杀归属由原版 die() 完成，实际死亡={}）",
                 wither.getUUID(), WitherConfig.DEATH_EXPLOSION_POWER, wither.isDeadOrDying());
     }
 
@@ -485,7 +485,7 @@ public final class WitherDeathSequence {
 
     /** 调试命令用的一行描述（{@code /wboss dump} 与 {@code /wboss diag}）。
      *  <p>IDLE 与"表里没有记录"都返回"无"，对使用者而言两者同义（没有演出在进行）。</p>
-     *  @param wither 待查询的凋零
+     *  @param wither 待查询的凋灵
      *  @return 人类可读的演出状态；PLAYING 时附上剩余 tick 数 */
     public static String describe(WitherBoss wither) {
         WitherDeathSequence seq = ACTIVE.get(wither.getUUID());
@@ -499,7 +499,7 @@ public final class WitherDeathSequence {
         };
     }
 
-    /** 该凋零此刻是否正在播死亡演出（供其它模块查询，例如渲染与诊断）。
+    /** 该凋灵此刻是否正在播死亡演出（供其它模块查询，例如渲染与诊断）。
      *  <p>只有 PLAYING 才算"正在演出" —— ALLOW_DEATH 之后死亡已放行，
      *  查询方（例如客户端形变判断）应当停手，交由死亡动画接管。</p>*/
     public static boolean isPlaying(WitherBoss wither) {

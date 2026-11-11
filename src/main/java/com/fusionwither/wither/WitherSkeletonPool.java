@@ -1,8 +1,8 @@
 /*
- * 【文件职责】二阶段凋零骷髅召唤池：限制同时存活数量、死亡后按节流补召唤。
- * 【所属模块】wither 核心（凋零辅助能力）。
+ * 【文件职责】二阶段凋灵骷髅召唤池：限制同时存活数量、死亡后按节流补召唤。
+ * 【所属模块】wither 核心（凋灵辅助能力）。
  * 【协作关系】由二阶段逻辑（PhaseTwoLogic.tick()）每 tick 调用 tickRefill 驱动，
- *             内部通过 aliveCount/spawn 维护归属集合；凋零死亡时由清理流程调用 clear。
+ *             内部通过 aliveCount/spawn 维护归属集合；凋灵死亡时由清理流程调用 clear。
  * 【关键约束】持有关系用"弱引用记录"而不是给骷髅写 NBT 标签 —— 不碰原版实体数据，
  *             也不会与其他模组的标签约定冲突；同时上限必须由补召唤入口控制，避免超编。
  */
@@ -22,30 +22,30 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * 二阶段召唤的凋零骷髅池，同时存在上限受 {@link WitherConfig#PHASE2_SKELETON_MAX_ALIVE}
+ * 二阶段召唤的凋灵骷髅池，同时存在上限受 {@link WitherConfig#PHASE2_SKELETON_MAX_ALIVE}
  * 约束，死了才补。
  *
- * <p><b>设计要点：</b>用"记录归属"（哪只骷髅属于哪只凋零）而不是给骷髅打 NBT 标签 ——
+ * <p><b>设计要点：</b>用"记录归属"（哪只骷髅属于哪只凋灵）而不是给骷髅打 NBT 标签 ——
  * 不用碰原版实体的数据，也不会和其他模组的标签冲突。归属表和骷髅对象都用
- * {@code WeakHashMap} 承载：凋零或骷髅被回收后条目自动消失，不会长期占内存，
+ * {@code WeakHashMap} 承载：凋灵或骷髅被回收后条目自动消失，不会长期占内存，
  * 也不会因为残留强引用而阻止实体卸载。
  *
- * <p><b>生命周期：</b>静态工具类，无实例、无显式初始化；首次为某只凋零查询归属时
- * 懒创建它的集合，凋零死亡时由 {@link #clear} 移除条目。
+ * <p><b>生命周期：</b>静态工具类，无实例、无显式初始化；首次为某只凋灵查询归属时
+ * 懒创建它的集合，凋灵死亡时由 {@link #clear} 移除条目。
  *
- * <p><b>不变量：</b>同一只凋零的已存活计数只由 {@link #aliveCount} 现场统计（顺带剔除
+ * <p><b>不变量：</b>同一只凋灵的已存活计数只由 {@link #aliveCount} 现场统计（顺带剔除
  * 失效项），不额外维护计数器，避免出现"计数与实际不符"的漂移。
  */
 public final class WitherSkeletonPool {
 
-    /** 每只凋零 → 它召唤出来的骷髅集合。弱引用键值，随实体卸载自动回收。 */
+    /** 每只凋灵 → 它召唤出来的骷髅集合。弱引用键值，随实体卸载自动回收。 */
     private static final Map<WitherBoss, Set<WitherSkeleton>> OWNED =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     private WitherSkeletonPool() {}
 
     /**
-     * 取（必要时创建）某只凋零的骷髅归属集合。
+     * 取（必要时创建）某只凋灵的骷髅归属集合。
      *
      * <p><b>调用时机：</b>{@link #aliveCount} 与 {@link #spawn} 内部调用。
      *
@@ -53,7 +53,7 @@ public final class WitherSkeletonPool {
      * 不必手工清理"已经不存在"的元素。
      *
      * @param wither 归属主体
-     * @return 该凋零的归属集合；调用方需自行 {@code synchronized} 迭代（见 aliveCount）
+     * @return 该凋灵的归属集合；调用方需自行 {@code synchronized} 迭代（见 aliveCount）
      */
     private static Set<WitherSkeleton> ownedSet(WitherBoss wither) {
         return OWNED.computeIfAbsent(wither,
@@ -61,7 +61,7 @@ public final class WitherSkeletonPool {
     }
 
     /**
-     * 统计当前还活着的、属于这只凋零的骷髅数量。
+     * 统计当前还活着的、属于这只凋灵的骷髅数量。
      *
      * <p><b>调用时机：</b>每次补召唤前（判断还剩多少空位）以及调试信息输出时。
      *
@@ -95,7 +95,7 @@ public final class WitherSkeletonPool {
      *
      * <p><b>调用时机：</b>由 {@link #tickRefill} 按固定的检查间隔调用。
      *
-     * <p><b>副作用：</b>在服务端真实生成实体并加入关卡，同时把目标设为凋零当前的锁定目标。
+     * <p><b>副作用：</b>在服务端真实生成实体并加入关卡，同时把目标设为凋灵当前的锁定目标。
      *
      * <p><b>为什么先算 room 再 min：</b>上限是硬约束，请求数量超过空位时只能补满空位，
      * 否则会出现超编的骷髅堆。
@@ -122,7 +122,7 @@ public final class WitherSkeletonPool {
             if (sk == null) {
                 continue;
             }
-            // 以凋零为圆心、2.0~5.0 格半径的随机方位落点，避免全部堆在同一点
+            // 以凋灵为圆心、2.0~5.0 格半径的随机方位落点，避免全部堆在同一点
             double a = sl.random.nextDouble() * Math.PI * 2.0D;
             double r = 2.0D + sl.random.nextDouble() * 3.0D;
             sk.moveTo(wither.getX() + Math.cos(a) * r,
@@ -131,7 +131,7 @@ public final class WitherSkeletonPool {
                     sl.random.nextFloat() * 360.0F, 0.0F);
 
             LivingEntity ownerTarget = wither.getTarget();
-            // 直接继承凋零当前的目标，让骷髅立刻参战；凋零未索敌时留空，由原版自行找目标
+            // 直接继承凋灵当前的目标，让骷髅立刻参战；凋灵未索敌时留空，由原版自行找目标
             if (ownerTarget != null) {
                 sk.setTarget(ownerTarget);
             }
@@ -165,9 +165,9 @@ public final class WitherSkeletonPool {
     }
 
     /**
-     * 凋零死亡时清空归属记录，避免残留条目继续参与统计。
+     * 凋灵死亡时清空归属记录，避免残留条目继续参与统计。
      *
-     * <p><b>调用时机：</b>凋零死亡/移除的清理流程中。
+     * <p><b>调用时机：</b>凋灵死亡/移除的清理流程中。
      *
      * @param wither 归属主体
      */

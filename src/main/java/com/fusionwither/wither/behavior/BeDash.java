@@ -82,7 +82,7 @@ public final class BeDash {
         // 【诊断】记录段数与每段时长 —— 实测反馈「BE 位移没生效过」时，
         // 这条日志能立刻区分「技能没触发」与「触发了但没走」。
         com.fusionwither.NewMod.LOGGER.info(
-                "[凋零/诊断] BE走位开始：段数={} 每段={}tick 总时长={}tick 方向1={} 方向2={}",
+                "[凋灵/诊断] BE走位开始：段数={} 每段={}tick 总时长={}tick 方向1={} 方向2={}",
                 n, ticksPerSegment(brain),
                 n * ticksPerSegment(brain),
                 fmt(first), n >= 2 ? fmt(brain.beDashDir2()) : "—");
@@ -129,7 +129,7 @@ public final class BeDash {
         // 【历史 bug】原先写成「if (left<=0 && idx+1<n) 推进 else left=left」：
         // 当 n=1 时 `idx+1<n` 恒为 false → 索引永不递增，而 finished() 判据是
         // `idx>=n && left<=0` 也恒为 false → 技能永不结束、卡在技能状态不再做走位决策，
-        // 凋零只能按原版逻辑漂移（用户反馈的「缓慢后撤」「BE 位移没生效」）。
+        // 凋灵只能按原版逻辑漂移（用户反馈的「缓慢后撤」「BE 位移没生效」）。
         //
         // 现改为：**只要段内计时归零就推进索引**；若后面还有段则重置段内计时，
         // 否则把索引置为 n、计时置 0，供 finished() 判定。
@@ -181,14 +181,14 @@ public final class BeDash {
      *
      * <p><b>【关键】无目标时的兜底：</b>目标为 null 时用 {@link WitherBrain#randomHorizontal()} 兜底，
      * 使本方法成为全链路<b>唯一</b>「没有目标也能算出位移方向」的路径。它正是
-     * 「凋零没有仇恨也在 BE 走位」这一 bug 的根因：技能内部虽然普遍有目标空判，
+     * 「凋灵没有仇恨也在 BE 走位」这一 bug 的根因：技能内部虽然普遍有目标空判，
      * 但派发本身要拦在 {@link WitherBrain#tick()} 的「无目标总闸门」里（空判放在派发之前），
      * 否则无仇恨时照样按随机方向高速冲刺。
      *
      * <p>取值方式：在以 toward 为轴、半张角 {@link WitherConfig#P1_BE_DASH_ARC_DEGREES}/2 的锥内随机转角；
      * 若给了 avoid，则最多尝试 8 次直到与 avoid 的夹角 &gt; 60°（即 dot &lt; 0.5）。
      *
-     * @param brain 状态机（提供目标、凋零实体与随机数）
+     * @param brain 状态机（提供目标、凋灵实体与随机数）
      * @param avoid 需要与之拉开角度的方向（用于第二段），可为 null
      * @return 归一化后的水平单位方向
      */

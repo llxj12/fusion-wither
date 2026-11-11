@@ -1,6 +1,6 @@
 /*
- * 【文件职责】凋零所有爆炸与沿途地形破坏的统一出口，以及"哪些方块不许被破坏"的判定。
- * 【所属模块】wither 核心（凋零辅助能力）。
+ * 【文件职责】凋灵所有爆炸与沿途地形破坏的统一出口，以及"哪些方块不许被破坏"的判定。
+ * 【所属模块】wither 核心（凋灵辅助能力）。
  * 【协作关系】由冲撞行为、二阶段入场演出、冲撞后上升段等调用方分别调用
  *             bigExplosion / crashExplosion / breakAlongCharge；
  *             受保护方块的过滤在 ExplosionEvent.Detonate 里通过 filterDetonation 生效，
@@ -37,7 +37,7 @@ import java.util.Set;
  * 因此"保护方块"的能力没有丢失，只是换了实现位置。
  *
  * <p><b>例外：</b>冲撞途中的实时破坏（{@link #breakAlongCharge}）是用户明确要求的效果，
- * 它按"凋零本身能破坏的方块"这一条件直接 {@code destroyBlock}，不经过原版爆炸 ——
+ * 它按"凋灵本身能破坏的方块"这一条件直接 {@code destroyBlock}，不经过原版爆炸 ——
  * 这是本类里唯一手工破坏方块的地方。
  *
  * <p><b>生命周期：</b>纯静态工具类，无实例；黑名单与前缀表在类初始化时从配置读入一次。
@@ -67,7 +67,7 @@ public final class CrashEffects {
      *
      * <p><b>调用时机：</b>需要一次性大范围爆炸时调用（例如死亡收尾、入场爆发）。
      *
-     * <p><b>副作用：</b>在凋零当前坐标调用原版 {@code Level.explode}，产生伤害与击退；
+     * <p><b>副作用：</b>在凋灵当前坐标调用原版 {@code Level.explode}，产生伤害与击退；
      * {@code destructive} 为 true 时还会破坏地形。
      *
      * @param wither 爆炸的制造者（用于伤害归属与免疫判定）
@@ -137,11 +137,11 @@ public final class CrashEffects {
      *
      * <p><b>调用时机：</b>冲撞冲锋期间由冲撞行为每 tick 调用。
      *
-     * <p><b>用户要求：</b>"冲撞时直接破坏路经上的、凋零可以破坏的方块"，让高速冲撞有
+     * <p><b>用户要求：</b>"冲撞时直接破坏路经上的、凋灵可以破坏的方块"，让高速冲撞有
      * "撞穿一切"的实感，而不是撞墙就停。
      *
      * <p><b>副作用：</b>直接 {@code destroyBlock} 沿路方块（不掉落物品），会改变地形；
-     * 这是本模组里唯一绕开原版爆炸的手工破坏路径，因此三重过滤都不能省：只破凋零本身能破的
+     * 这是本模组里唯一绕开原版爆炸的手工破坏路径，因此三重过滤都不能省：只破凋灵本身能破的
      * 方块（{@code getDestroySpeed >= 0} 排除基岩类，且排除流体）、受 F-09 黑名单与前缀兜底
      * 约束（箱子、床、门、工作站点等不破）、半径由
      * {@link WitherConfig#CRASH_CHARGE_BREAK_RADIUS} 控制而只覆盖身体周围。
@@ -174,7 +174,7 @@ public final class CrashEffects {
                     if (state.isAir() || !state.getFluidState().isEmpty()) {
                         continue;
                     }
-                    // 凋零本身无法破坏的方块（基岩等）永不破坏
+                    // 凋灵本身无法破坏的方块（基岩等）永不破坏
                     if (state.getDestroySpeed(level, p) < 0.0F) {
                         continue;
                     }

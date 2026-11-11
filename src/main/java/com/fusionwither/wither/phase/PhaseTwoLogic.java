@@ -1,5 +1,5 @@
 /*
- * 【文件职责】二阶段的薄层外壳：空窗期表现、凋零骷髅补召唤节流、空窗期护甲策略。
+ * 【文件职责】二阶段的薄层外壳：空窗期表现、凋灵骷髅补召唤节流、空窗期护甲策略。
  * 【所属模块】wither.phase 阶段逻辑。
  * 【协作关系】由 WitherBrain.tick() 在二阶段每帧调用 tick()；空窗期由
  *             WitherBrain.phaseTwoDispatch() 在「无可用行为」时反调 idleWindow()；
@@ -49,10 +49,10 @@ public final class PhaseTwoLogic {
      * <p><b>为什么这里没有位移：</b>见文件头「关键约束」。原先这里还调用过一次距离修正，
      * 与 {@code phaseTwoMovement} 的距离修正在同一帧先后执行、互相抵消，已删除。</p>
      *
-     * <p><b>副作用：</b>可能标记护甲（{@link WitherArmor#markArmored}）、可能补召唤凋零骷髅、
+     * <p><b>副作用：</b>可能标记护甲（{@link WitherArmor#markArmored}）、可能补召唤凋灵骷髅、
      * 可能切换行为池的当前行为、可能经 {@link #idleWindow} 置位 lastTickIdle 或发射弹幕。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     public static void tick(WitherBrain brain) {
         // 护甲续期（避免被其他模组清掉）。
@@ -100,7 +100,7 @@ public final class PhaseTwoLogic {
      * 注意本方法只负责<b>置位</b>，清位由 WitherBrain 在行为池真正开始一个行为的帧完成
      * （它会把 {@code lastTickIdle} 置 false）。</p>
      *
-     * @param brain 该凋零的状态容器
+     * @param brain 该凋灵的状态容器
      */
     public static void idleWindow(WitherBrain brain) {
         var wither = brain.wither();

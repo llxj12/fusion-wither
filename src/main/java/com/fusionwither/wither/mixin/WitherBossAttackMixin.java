@@ -1,12 +1,12 @@
 /*
- * 【文件职责】接管凋零的"开火权"：把原版唯一能生成凋零之首的出口堵死，让所有弹幕
+ * 【文件职责】接管凋灵的"开火权"：把原版唯一能生成凋灵之首的出口堵死，让所有弹幕
  *             都改由本模组的射击系统发出。
  * 【所属模块】wither.mixin 原版注入层。
  * 【协作关系】由 WitherBoss 实例在服务端每帧执行 customServerAiStep 时被触发；
  *             它拦下原版射击，之后真正的射击由 SkullVolley（本模组的射击系统）完成；
  *             位移交给 WitherBossMovementMixin，头部转向与瞄准完全留给原版。
  * 【关键约束】只能堵"生成弹幕"这一个出口，绝不能整体取消 customServerAiStep ——
- *             那会连头部转向一起取消；本模组自己 new 出来的凋零之首不走这个出口，
+ *             那会连头部转向一起取消；本模组自己 new 出来的凋灵之首不走这个出口，
  *             因此不会被误伤。
  */
 package com.fusionwither.wither.mixin;
@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <ul>
  *   <li>三个头各自瞄准 + 头部转向 —— <b>原版</b>。完全不干预：这里包含头部旋转插值，
  *       自己重写一定比原版差。</li>
- *   <li>开火（生成凋零之首） —— <b>本模组</b>。本类取消 {@code m_31448_}（原版唯一的生成出口）。</li>
+ *   <li>开火（生成凋灵之首） —— <b>本模组</b>。本类取消 {@code m_31448_}（原版唯一的生成出口）。</li>
  *   <li>"平A / 弹幕压制"的节奏 —— <b>本模组</b>，由 {@link com.fusionwither.wither.SkullVolley} 负责。</li>
  *   <li>出生苏醒（激活动画） —— <b>原版</b>。本类不再干预 {@code getInvulnerableTicks()}，理由见下。</li>
  *   <li>位移 —— 本模组，由 {@link WitherBossMovementMixin} 每帧钉回坐标。</li>
@@ -51,7 +51,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class WitherBossAttackMixin {
 
     /**
-     * 取消原版生成凋零之首的唯一出口。
+     * 取消原版生成凋灵之首的唯一出口。
      *
      * <p><b>调用时机：</b>原版 AI 想发射弹幕时被触发。{@code m_31448_(IDDDZ)V} 是
      * {@code WitherBoss} 的私有方法，字节码里只有它 {@code new WitherSkull}（随后
@@ -63,7 +63,7 @@ public abstract class WitherBossAttackMixin {
      * <p><b>为什么注入点选这里而不是 {@code m_6504_}：</b>上一版取消的是
      * {@code performRangedAttack}，但字节码显示它只做一件事 —— 登记/瞄准 0 号头；
      * 三条发射路径里只有一条经过它，所以原版弹幕照旧。堵住唯一出口后，
-     * 原版一根凋零之首都发不出来，而头部转向/瞄准（{@code m_31454_}、{@code m_31510_} 等）
+     * 原版一根凋灵之首都发不出来，而头部转向/瞄准（{@code m_31454_}、{@code m_31510_} 等）
      * 全部保留。之所以必须压制原版射击：本模组自己发弹幕，两边叠加会让弹幕数量翻倍，
      * 而且原版射击不区分"平A"与"弹幕压制"，会盖过我们精心区分的两种节奏。
      *

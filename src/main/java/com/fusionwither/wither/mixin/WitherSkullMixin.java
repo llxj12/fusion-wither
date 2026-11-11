@@ -1,12 +1,12 @@
 /*
- * 【文件职责】让本模组发射的凋零之首按配置取值：伤害不再用原版硬编码的 8 点，
+ * 【文件职责】让本模组发射的凋灵之首按配置取值：伤害不再用原版硬编码的 8 点，
  *             蓝色弹幕按配置附加凋零效果。
  * 【所属模块】wither.mixin 原版注入层。
- * 【协作关系】由凋零之首的命中处理 {@code m_5790_(EntityHitResult)} 触发；
+ * 【协作关系】由凋灵之首的命中处理 {@code m_5790_(EntityHitResult)} 触发；
  *             伤害值/蓝色标记都来自 SkullVolley（它生成弹幕时登记），配置值来自
  *             WitherConfig；本类只读取这两者，不做登记。
  * 【关键约束】改写必须能被"非本模组弹幕"绕过 —— 查不到 SkullVolley 登记标记的弹幕
- *             一律走原版数值，否则会误改原版/其他模组发射的凋零之首。
+ *             一律走原版数值，否则会误改原版/其他模组发射的凋灵之首。
  */
 package com.fusionwither.wither.mixin;
 
@@ -24,15 +24,15 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 把凋零之首的命中效果从原版写死的数值，改成可配置的数值。
+ * 把凋灵之首的命中效果从原版写死的数值，改成可配置的数值。
  *
  * <p><b>为什么需要这个 Mixin：</b>原版 {@code WitherSkull.m_5790_} 里的伤害是字面量常量
  * （字节码 {@code ldc 8.0f}），不读任何字段，所以 {@link WitherConfig#SKULL_BLACK_DAMAGE}、
  * {@link WitherConfig#SKULL_BLUE_DAMAGE}、{@link WitherConfig#IDLE_ATTACK_DAMAGE}
- * 在改造前永远不生效；蓝色弹幕的凋零等级与时长同样是写死的 II 级 / 40 tick。
+ * 在改造前永远不生效；蓝色弹幕的凋灵等级与时长同样是写死的 II 级 / 40 tick。
  *
  * <p><b>作用范围被严格限制：</b>只有 {@link SkullVolley} 发出、并在
- * {@link SkullVolley#damageOf} 里登记过伤害值的弹幕才会被改写。其他模组或原版凋零自己
+ * {@link SkullVolley#damageOf} 里登记过伤害值的弹幕才会被改写。其他模组或原版凋灵自己
  * 发射的弹幕查不到标记，走原版 8.0f 不变 —— 这是"只改自己的弹幕"的保证。
  *
  * <p><b>为什么用 {@code @Redirect} 而不是 {@code @Overwrite}：</b>
@@ -47,7 +47,7 @@ public abstract class WitherSkullMixin {
     /**
      * 把原版硬编码的伤害换成该弹幕登记的伤害值。
      *
-     * <p><b>调用时机：</b>凋零之首命中实体、原版走到"结算伤害"那一步时被触发。
+     * <p><b>调用时机：</b>凋灵之首命中实体、原版走到"结算伤害"那一步时被触发。
      *
      * <p><b>注入说明：</b>{@code @Redirect} 替换的是原版对
      * {@code Entity.m_6469_(DamageSource, float)Z}（即 {@code hurt}）的调用；
@@ -78,7 +78,7 @@ public abstract class WitherSkullMixin {
      * <p><b>调用时机：</b>同一次命中处理的末尾（TAIL），即原版结算伤害、附加自身效果之后。
      *
      * <p><b>为什么用 TAIL 追加而不是替换原版的构造调用：</b>替换需要重写整段分支，
-     * 而追加只需在方法末尾补一次；原版给"危险"凋零之首的是固定 II 级、固定 40 tick，
+     * 而追加只需在方法末尾补一次；原版给"危险"凋灵之首的是固定 II 级、固定 40 tick，
      * 这里对标记为蓝的弹幕再补一次按配置的效果，于是
      * {@link WitherConfig#SKULL_BLUE_WITHER_LEVEL} 与
      * {@link WitherConfig#SKULL_BLUE_WITHER_DURATION_TICKS} 得以生效。

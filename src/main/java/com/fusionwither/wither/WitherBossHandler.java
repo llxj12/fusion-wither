@@ -1,5 +1,5 @@
 /*
- * 【文件职责】把凋零的状态机、护甲、死亡演出接到 Forge 事件总线上，并注册 /wboss 调试命令。
+ * 【文件职责】把凋灵的状态机、护甲、死亡演出接到 Forge 事件总线上，并注册 /wboss 调试命令。
  * 【所属模块】wither 核心。
  * 【协作关系】模组入口把本类注册进游戏总线后，Forge 每 tick 回调 onLivingTick → tick() 驱动
  *   WitherBrain；伤害/弹丸/爆炸事件分别转交 WitherDeathSequence、WitherArmor、CrashEffects。
@@ -28,7 +28,7 @@ import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 /**
- * 凋零 Boss 的 Forge 事件接线层 + {@code /wboss} 调试命令注册器。
+ * 凋灵 Boss 的 Forge 事件接线层 + {@code /wboss} 调试命令注册器。
  *
  * <p><b>职责边界：</b>本类不做战斗决策，只负责"把原版/Forge 的时机转发给状态机"。
  * 真正的 AI、位移、射击、阶段判定都在 {@link WitherBrain} 及其行为类里；本类只做
@@ -55,17 +55,17 @@ public final class WitherBossHandler {
     // ===============================================================
 
     /**
-     * 驱动凋零状态机的单 tick 逻辑 —— 本类每 tick 唯一真正做事的方法。
+     * 驱动凋灵状态机的单 tick 逻辑 —— 本类每 tick 唯一真正做事的方法。
      *
      * <p><b>调用时机：</b>由 {@link #onLivingTick} 在服务端每 tick 调一次；实体已死/正在死时走清理分支。
      *
      * <p><b>副作用：</b>补写原版 target 字段、调用 {@code brain.tick()}、刷新 Boss 血条进度；
      * 死亡或移除时清空 brain 与各附属缓存（护甲、骷髅池、死亡演出计时）。
      *
-     * @param wither 本 tick 要处理的凋零实体，非 null（调用方已过滤类型与端别）
+     * @param wither 本 tick 要处理的凋灵实体，非 null（调用方已过滤类型与端别）
      */
     public static void tick(WitherBoss wither) {
-        // 取得该凋零本 tick 的状态机实例（按实体缓存，见 WitherBrain.of）。
+        // 取得该凋灵本 tick 的状态机实例（按实体缓存，见 WitherBrain.of）。
         WitherBrain brain = WitherBrain.of(wither);
 
         if (wither.isDeadOrDying()) {
@@ -111,7 +111,7 @@ public final class WitherBossHandler {
     }
 
     /**
-     * 事件驱动的凋零状态机入口 —— 实机反馈后确定的架构（不再注入 {@code customServerAiStep}）。
+     * 事件驱动的凋灵状态机入口 —— 实机反馈后确定的架构（不再注入 {@code customServerAiStep}）。
      *
      * <p><b>为什么改挂 {@code LivingTickEvent}：</b>实机曾出现"凋灵站着不动、不进二阶段、
      * 行为池不工作"，而血量已低于阈值 —— 说明 {@code brain.tick()} 根本没在跑。
@@ -119,7 +119,7 @@ public final class WitherBossHandler {
      * 无法离线确证，风险过高；{@code LivingTickEvent} 是玩家/实体每 tick 稳定触发的 Forge 事件，
      * 不依赖任何注入点。
      *
-     * <p><b>前置条件：</b>只处理服务端的 {@code WitherBoss}；非凋零、客户端实例直接早退。
+     * <p><b>前置条件：</b>只处理服务端的 {@code WitherBoss}；非凋灵、客户端实例直接早退。
      *
      * @param event Forge 每 tick 广播的活体 tick 事件；实体非目标类型时本方法立即返回
      */
@@ -155,7 +155,7 @@ public final class WitherBossHandler {
      * <p><b>副作用：</b>不修改实体自身状态，只重写本次伤害量；具体判定与改写规则见
      * {@link WitherDeathSequence#filterDamage}。
      *
-     * @param event 伤害事件；实体非凋零或客户端实例时本方法立即返回
+     * @param event 伤害事件；实体非凋灵或客户端实例时本方法立即返回
      */
     @SubscribeEvent
     public static void onLivingDamage(net.minecraftforge.event.entity.living.LivingDamageEvent event) {
@@ -175,13 +175,13 @@ public final class WitherBossHandler {
     }
 
     /**
-     * 取凋零原版持有的 Boss 血条对象（{@code ServerBossEvent}）。
+     * 取凋灵原版持有的 Boss 血条对象（{@code ServerBossEvent}）。
      *
      * <p><b>为什么需要访问器：</b>原版该字段是私有的，只能通过 {@link WitherBossAccessor}
      * 的 mixin 访问器读出；读不到（非原版实例）时返回 null，由 {@code updateBossBar} 自行容错。
      *
-     * @param wither 目标凋零
-     * @return 该凋零的血条事件对象；读不到时为 null
+     * @param wither 目标凋灵
+     * @return 该凋灵的血条事件对象；读不到时为 null
      */
     private static ServerBossEvent bossEvent(WitherBoss wither) {
         if (wither instanceof WitherBossAccessor accessor) {
@@ -201,7 +201,7 @@ public final class WitherBossHandler {
     public static void logTickError(Throwable t) {
         if (tickErrors < 5) {
             tickErrors++;
-            NewMod.LOGGER.error("[凋零] 状态机在 tick 中抛异常（第 {} 次）", tickErrors, t);
+            NewMod.LOGGER.error("[凋灵] 状态机在 tick 中抛异常（第 {} 次）", tickErrors, t);
         }
     }
 
@@ -217,7 +217,7 @@ public final class WitherBossHandler {
      * 因此这里不按弹射物类型过滤。近战走 {@code mobAttack}、爆炸走 {@code explode}，
      * 都不经过本事件，天然不受护甲影响（规格 G2/G3）。
      *
-     * <p><b>副作用：</b>命中凋零且护甲开启时，把命中结果设为 {@code STOP_AT_CURRENT_NO_DAMAGE}
+     * <p><b>副作用：</b>命中凋灵且护甲开启时，把命中结果设为 {@code STOP_AT_CURRENT_NO_DAMAGE}
      * （停在此处且不结算伤害），并在命中点播放护甲弹开特效；同时无条件清理本模组弹幕的标记。
      *
      * @param event 弹射物命中事件
@@ -226,14 +226,14 @@ public final class WitherBossHandler {
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         try {
             // F-07：清理本模组弹幕的标记。
-            // 早先只在「本模组弹幕击中凋零」这一最窄条件下清理，
+            // 早先只在「本模组弹幕击中凋灵」这一最窄条件下清理，
             // 击中玩家或方块的弹幕标记会残留在 WeakHashMap 中。
             // 现在提到最前面，且不再限定命中目标。
             if (event.getProjectile() instanceof WitherSkull ourSkull) {
                 SkullVolley.forget(ourSkull);
             }
 
-            // F-06：护甲免疫的是「弹射物」，不是「凋零之首」。
+            // F-06：护甲免疫的是「弹射物」，不是「凋灵之首」。
             // 因此这里不限制弹射物类型 —— 弓、弩、三叉戟、雪球、火球等
             // 全部由本事件经过，一律在此判断。
             // 近战走 mobAttack（不触发本事件）、爆炸走 explode（不触发本事件），
@@ -258,7 +258,7 @@ public final class WitherBossHandler {
      * 爆炸方块过滤（游戏总线：{@code ExplosionEvent.Detonate}）——
      * 在爆炸真正破坏方块前，把受保护方块从破坏列表里剔除（F-09 的名单在此生效）。
      *
-     * <p><b>为什么只处理本模组凋零的爆炸：</b>按爆炸源实体判定，只拦截 {@code WitherBoss}
+     * <p><b>为什么只处理本模组凋灵的爆炸：</b>按爆炸源实体判定，只拦截 {@code WitherBoss}
      * 引发的爆炸，因此不会影响其它模组或原版凋灵的爆炸行为。
      *
      * <p><b>副作用：</b>原地修改 {@code event.getAffectedBlocks()}，不改变爆炸威力与伤害结算。
@@ -328,12 +328,12 @@ public final class WitherBossHandler {
                             ? "无(未索敌·行为池停摆)"
                             : tp.getType().getDescription().getString() + "·" + tp.getName().getString();
                     src.sendSuccess(() -> Component.literal(String.format(
-                            "[凋零] 阶段=%s 血量=%.1f/%.1f(%.0f%%) 欲望=%s 当前行为=%s 索敌=%s",
+                            "[凋灵] 阶段=%s 血量=%.1f/%.1f(%.0f%%) 欲望=%s 当前行为=%s 索敌=%s",
                             b.isPhaseTwo() ? "二阶段" : "一阶段",
                             w.getHealth(), w.getMaxHealth(), b.healthRatio() * 100.0D,
                             b.isHighDesire() ? "高攻击" : "消耗", active, aggro)), false);
                     src.sendSuccess(() -> Component.literal(String.format(
-                            "[凋零] CD: 弹幕=%d 冲撞=%d 软=%d | 入场演出=%s 出生苏醒=%s 死亡演出=%s 二段入场=%s 护甲=%s 骷髅=%d/%d | 相邻重复率=%.0f%% | 已进二阶段=%s",
+                            "[凋灵] CD: 弹幕=%d 冲撞=%d 软=%d | 入场演出=%s 出生苏醒=%s 死亡演出=%s 二段入场=%s 护甲=%s 骷髅=%d/%d | 相邻重复率=%.0f%% | 已进二阶段=%s",
                             b.getBarrageCd(), b.getCrashCd(), b.getCrashSoftCd(),
                             b.isIntroPlaying() ? "进行中" : "无",
                             b.isAwakening() ? "进行中" : "无",
@@ -402,7 +402,7 @@ public final class WitherBossHandler {
                     ServerLevel level = (ServerLevel) p.level();
                     WitherBoss w = EntityType.WITHER.create(level);
                     if (w == null) {
-                        src.sendFailure(Component.literal("[凋零] 创建凋灵失败"));
+                        src.sendFailure(Component.literal("[凋灵] 创建凋灵失败"));
                         return 0;
                     }
                     w.moveTo(p.getX() + 6.0D, p.getY(), p.getZ(), 0.0F, 0.0F);
@@ -411,13 +411,13 @@ public final class WitherBossHandler {
                     // （WitherSkullBlock → WitherBoss.m_31506_：invulnerableTicks = 220）。
                     // 用 create + addFreshEntity 直接生成的凋灵该字段是 0，
                     // 按原版规则本来就没有激活动画 —— 这里补上等价状态，
-                    // 让"凋零激活时的动画"在调试命令下同样可以看到：
+                    // 让"凋灵激活时的动画"在调试命令下同样可以看到：
                     // 血条从 0 充能到满、凋灵周身灵魂粒子、11 秒内免伤，
                     // 倒计时归零时在原位炸一发威力 7 的爆炸并广播 1023 吼声。
                     // 状态机在这段时间会自动早退（见 WitherBrain.updateAwakening）。
                     w.setInvulnerableTicks(WitherConfig.WITHER_AWAKENING_TICKS);
                     src.sendSuccess(() -> Component.literal(String.format(
-                            "[凋零] 已生成凋灵，血量上限=%.0f | 出生苏醒动画 %d tick（结束时原位爆炸 + 吼声，请站远些看）",
+                            "[凋灵] 已生成凋灵，血量上限=%.0f | 出生苏醒动画 %d tick（结束时原位爆炸 + 吼声，请站远些看）",
                             w.getMaxHealth(), WitherConfig.WITHER_AWAKENING_TICKS)), true);
                     return 1;
                 }))
@@ -428,7 +428,7 @@ public final class WitherBossHandler {
                             if (w == null) return fail(ctx.getSource());
                             WitherBrain.of(w).debugForcePhaseOne();
                             ctx.getSource().sendSuccess(() ->
-                                    Component.literal("[凋零] 已强制回到第一阶段"), false);
+                                    Component.literal("[凋灵] 已强制回到第一阶段"), false);
                             return 1;
                         }))
                         .then(Commands.literal("2").executes(ctx -> {
@@ -436,7 +436,7 @@ public final class WitherBossHandler {
                             if (w == null) return fail(ctx.getSource());
                             WitherBrain.of(w).debugForcePhaseTwo();
                             ctx.getSource().sendSuccess(() ->
-                                    Component.literal("[凋零] 已强制进入第二阶段"), false);
+                                    Component.literal("[凋灵] 已强制进入第二阶段"), false);
                             return 1;
                         })))
                 // ---- act <barrage|crash|none>：强制行为（none = 清空行为与 CD）----
@@ -456,11 +456,11 @@ public final class WitherBossHandler {
                                     if ("none".equalsIgnoreCase(name)) {
                                         brain.debugResetCooldowns();
                                         ctx.getSource().sendSuccess(() ->
-                                                Component.literal("[凋零] 已清空当前行为与所有 CD"), false);
+                                                Component.literal("[凋灵] 已清空当前行为与所有 CD"), false);
                                     } else {
                                         brain.debugForceBehavior(name);
                                         ctx.getSource().sendSuccess(() ->
-                                                Component.literal("[凋零] 已强制行为：" + name), false);
+                                                Component.literal("[凋灵] 已强制行为：" + name), false);
                                     }
                                     return 1;
                                 })))
@@ -473,7 +473,7 @@ public final class WitherBossHandler {
                                     int ticks = (int) DoubleArgumentType.getDouble(ctx, "ticks");
                                     WitherBrain.of(w).debugForceCooldowns(ticks);
                                     ctx.getSource().sendSuccess(() -> Component.literal(
-                                            "[凋零] 两个行为 CD 已设为 " + ticks
+                                            "[凋灵] 两个行为 CD 已设为 " + ticks
                                                     + " tick（0 = 立刻可放）"), false);
                                     return 1;
                                 })))
@@ -487,7 +487,7 @@ public final class WitherBossHandler {
                             if (w == null) return fail(ctx.getSource());
                             WitherArmor.clearArmor(w);
                             ctx.getSource().sendSuccess(() -> Component.literal(
-                                    "[凋零] 护甲已关闭并抑制自动标记 —— dump 的「护甲」字段应显示：关。"
+                                    "[凋灵] 护甲已关闭并抑制自动标记 —— dump 的「护甲」字段应显示：关。"
                                             + "用 /wboss armor on 恢复。"), false);
                             return 1;
                         }))
@@ -496,7 +496,7 @@ public final class WitherBossHandler {
                             if (w == null) return fail(ctx.getSource());
                             WitherArmor.restoreArmor(w);
                             ctx.getSource().sendSuccess(() -> Component.literal(
-                                    "[凋零] 护甲已恢复 —— dump 的「护甲」字段应显示：开。"), false);
+                                    "[凋灵] 护甲已恢复 —— dump 的「护甲」字段应显示：开。"), false);
                             return 1;
                         })))
                 // ---- hp <percent>：直接设凋灵血量（百分比），验证阶段切换 ----
@@ -508,7 +508,7 @@ public final class WitherBossHandler {
                                     double pct = DoubleArgumentType.getDouble(ctx, "percent");
                                     w.setHealth((float) (w.getMaxHealth() * pct / 100.0D));
                                     ctx.getSource().sendSuccess(() -> Component.literal(String.format(
-                                            "[凋零] 凋灵血量已设为 %.0f%%（%.1f）", pct, w.getHealth())), false);
+                                            "[凋灵] 凋灵血量已设为 %.0f%%（%.1f）", pct, w.getHealth())), false);
                                     return 1;
                                 })))
                 // ---- desire on|off：把玩家血量压到半血以下 / 回满，验证欲望切换 ----
@@ -517,14 +517,14 @@ public final class WitherBossHandler {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             p.setHealth(Math.max(1.0F, p.getMaxHealth() * 0.4F));
                             ctx.getSource().sendSuccess(() -> Component.literal(
-                                    "[凋零] 玩家血量已压到 40% —— 观察凋灵是否在 2 秒内切到高攻击欲望"), false);
+                                    "[凋灵] 玩家血量已压到 40% —— 观察凋灵是否在 2 秒内切到高攻击欲望"), false);
                             return 1;
                         }))
                         .then(Commands.literal("off").executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             p.setHealth(p.getMaxHealth());
                             ctx.getSource().sendSuccess(() -> Component.literal(
-                                    "[凋零] 玩家血量已回满 —— 观察凋灵是否在 2 秒内切回消耗模式"), false);
+                                    "[凋灵] 玩家血量已回满 —— 观察凋灵是否在 2 秒内切回消耗模式"), false);
                             return 1;
                         }))));
     }
@@ -536,7 +536,7 @@ public final class WitherBossHandler {
      * @return 固定返回 0，作为 Brigadier 约定表示命令失败
      */
     private static int fail(CommandSourceStack src) {
-        src.sendFailure(Component.literal("[凋零] 附近 64 格内没有凋灵"));
+        src.sendFailure(Component.literal("[凋灵] 附近 64 格内没有凋灵"));
         return 0;
     }
 

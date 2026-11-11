@@ -1,5 +1,5 @@
 /*
- * 【文件职责】凋零之首（WitherSkull）的发射器：单头独立发射 + BE 式「3 黑 1 蓝」规律弹幕，
+ * 【文件职责】凋灵之首（WitherSkull）的发射器：单头独立发射 + BE 式「3 黑 1 蓝」规律弹幕，
  *             并用旁挂表记录每颗弹幕的伤害与颜色标记，供命中回调读取。
  * 【所属模块】wither 核心。
  * 【协作关系】由 WitherBrain.fireReadyHeads() 按三颗头各自的冷却决定本帧谁开火，再调
@@ -24,11 +24,11 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * 弹幕发射器：原版 Java 凋零式「一次只从一颗头发射」+ BE 式「3 黑 1 蓝」规律弹幕。
+ * 弹幕发射器：原版 Java 凋灵式「一次只从一颗头发射」+ BE 式「3 黑 1 蓝」规律弹幕。
  *
  * <p><b>为什么改成「一次只发一颗头」：</b>早先的实现是三颗头在<b>同一 tick 齐射</b>。
  * 玩家实测反馈「残血追击变成三个头一起发射」，与原版观感不符 ——
- * 原版 Java 凋零是三颗头各持一个独立冷却、各瞄各的。因此本类只提供
+ * 原版 Java 凋灵是三颗头各持一个独立冷却、各瞄各的。因此本类只提供
  * {@link #fireFromHead} 这个「单头」单元操作，「谁在什么时候开火」完全交给调用方
  * （{@code WitherBrain.fireReadyHeads}）按每颗头的冷却决定，三颗头因此天然错峰。</p>
  *
@@ -54,7 +54,7 @@ public final class SkullVolley {
     private static final Set<WitherSkull> BLUE_SKULLS =
             Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
-    /** 原版凋零开火音效的 {@code levelEvent} 事件 ID。
+    /** 原版凋灵开火音效的 {@code levelEvent} 事件 ID。
      *  <p>取自 1.20.1 原版硬编码值（{@code WitherBoss.m_31448_} 内 {@code sipush 1024}），
      *  不是可调参数，因此不进 {@link WitherConfig}。</p>*/
     private static final int SHOOT_SOUND_EVENT = 1024;
@@ -62,7 +62,7 @@ public final class SkullVolley {
     private SkullVolley() {}
 
     /** 全局弹药循环计数器，实现「3 黑 1 蓝」。
-     *  <p>它是静态的、跨所有凋零共享：每发弹幕自增 1，
+     *  <p>它是静态的、跨所有凋灵共享：每发弹幕自增 1，
      *  再对 {@code BARRAGE_SKULLS_PER_CYCLE} 取模得到"本轮第几发"，据此决定颜色，
      *  从而在黑色序列里按固定位置插入一颗蓝弹。用 {@code AtomicInteger} 保证自增的原子性。</p>*/
     private static final java.util.concurrent.atomic.AtomicInteger CYCLE =
@@ -88,7 +88,7 @@ public final class SkullVolley {
     private static final double SIDE_HEAD_H_OFFSET = 1.3D;
 
     /**
-     * 从指定的某一颗头发射一发凋零之首 —— 「三头各自独立射击」的最小单元操作。
+     * 从指定的某一颗头发射一发凋灵之首 —— 「三头各自独立射击」的最小单元操作。
      *
      * <p><b>调用时机：</b>由 {@code WitherBrain.fireReadyHeads} 每帧检查三颗头各自的冷却，
      * 对已就绪的那几颗各调一次本方法。因为每颗头的冷却独立，"三个头一起发射"不会发生。</p>
@@ -96,12 +96,12 @@ public final class SkullVolley {
      * <p><b>发射点与瞄准点都照抄原版：</b>发射点见 {@link #headPosition}，
      * 瞄准点是原版 {@code m_31457_} 的 {@code target.getY() + getBbHeight() * 0.5}
      * （目标身体中心），见 {@link #aimDirection}。用原版公式而不是"眼睛位置 + 横向偏移"，
-     * 是为了让出膛点与原版凋零一致 —— 玩家看到的头颅确实是从头的位置飞出来的。</p>
+     * 是为了让出膛点与原版凋灵一致 —— 玩家看到的头颅确实是从头的位置飞出来的。</p>
      *
      * <p><b>副作用：</b>播一次开火音效（{@link #playShootSound}），生成一枚弹幕并登记
      * 伤害/颜色表项。客户端调用直接返回（本类逻辑是服务端专属）。</p>
      *
-     * @param wither  发射者（凋零）
+     * @param wither  发射者（凋灵）
      * @param target  当前锁定目标；为 null 时瞄准方向无法计算，直接不发射
      * @param head    头索引：0 = 主头，1 = 左副头，2 = 右副头
      * @param precise true = Java 式精准（误差取 {@code BARRAGE_AIM_INACCURACY}，接近 0）；
@@ -129,13 +129,13 @@ public final class SkullVolley {
      * <p><b>分工约定（用户定稿）：</b>
      * <ul>
      *   <li>平A（一阶段风筝常态、二阶段空窗期普攻）→ <b>只有主头</b>发射；</li>
-     *   <li>弹幕压制 / 狂暴 → 三头各自独立发射（原版 Java 凋零式）。</li>
+     *   <li>弹幕压制 / 狂暴 → 三头各自独立发射（原版 Java 凋灵式）。</li>
      * </ul>
      * 因此本方法等价于 {@link #fireFromHead}(wither, target, 0, …)。</p>
      *
      * <p><b>副作用：</b>同 {@link #fireFromHead}（服务端生成弹幕 + 播开火音效）。</p>
      *
-     * @param wither  发射者（凋零）
+     * @param wither  发射者（凋灵）
      * @param target  当前锁定目标；为 null 时不发射
      * @param precise true = Java 式精准；false = BE 式规律
      * @param damage  直击伤害
@@ -158,7 +158,7 @@ public final class SkullVolley {
      * （此处已转换）。漏掉这一步会把 1.3 格的水平偏移算成方向完全错误的量，
      * 副头会射向错误的一侧。</p>
      *
-     * @param wither 发射者（凋零）
+     * @param wither 发射者（凋灵）
      * @param head   头索引：0 = 主头，1 = 左副头，2 = 右副头
      * @return 该头的世界坐标发射点
      */
@@ -189,7 +189,7 @@ public final class SkullVolley {
     }
 
     /**
-     * 播放原版凋零的开火音效（{@code levelEvent} 事件 ID {@value #SHOOT_SOUND_EVENT} = 1024）。
+     * 播放原版凋灵的开火音效（{@code levelEvent} 事件 ID {@value #SHOOT_SOUND_EVENT} = 1024）。
      *
      * <p><b>为什么必须自己补这一声：</b>原版音效只写在私有发射方法
      * {@code WitherBoss.m_31448_(IDDDZ)V} 的<b>开头</b>，反汇编确证为
@@ -204,7 +204,7 @@ public final class SkullVolley {
      *       <b>不是</b> {@code getOnPos()}（{@code m_20097_}）—— 后者带约 0.2 格的 y 偏移，
      *       坐标会与原版差一格以内。音效按事件 ID 选曲、按坐标衰减，
      *       只有落在同一点才是真的「一样的声音」。</li>
-     *   <li>{@code isSilent()} 守卫同样保留：静音凋零（如安静刷怪）本就不发声，
+     *   <li>{@code isSilent()} 守卫同样保留：静音凋灵（如安静刷怪）本就不发声，
      *       补音效不该把它的静音属性意外推翻。</li>
      * </ul></p>
      *
@@ -216,7 +216,7 @@ public final class SkullVolley {
      * 服务器端由它把音效广播给所有玩家；第一个参数是「被排除的玩家」，
      * 传 {@code (Player) null}（显式转型是为了选中该重载）表示不排除任何人，即全场都能听到。</p>
      *
-     * @param wither 发射者（凋零）；被标记为静音时直接跳过
+     * @param wither 发射者（凋灵）；被标记为静音时直接跳过
      */
     private static void playShootSound(WitherBoss wither) {
         if (!wither.isSilent()) {
@@ -225,7 +225,7 @@ public final class SkullVolley {
     }
 
     /**
-     * 生成一颗凋零之首实体，并登记它的伤害 / 颜色标记。
+     * 生成一颗凋灵之首实体，并登记它的伤害 / 颜色标记。
      *
      * <p><b>颜色循环：</b>读全局 {@link #CYCLE} 取自增序号，对
      * {@code BARRAGE_SKULLS_PER_CYCLE} 取模 +1 得到"本轮第几发"，
@@ -242,7 +242,7 @@ public final class SkullVolley {
      * 否则用参数 {@code damage}），蓝弹再写 {@link #BLUE_SKULLS}，最后把实体加入世界。</p>
      *
      * @param level   当前世界（服务端）
-     * @param wither  发射者（凋零）
+     * @param wither  发射者（凋灵）
      * @param from    该头的发射点
      * @param aimDir  该头的瞄准方向（加散布前）
      * @param precise 瞄准模式，决定用哪一档误差常量

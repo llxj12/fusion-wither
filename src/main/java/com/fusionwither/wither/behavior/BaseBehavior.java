@@ -17,7 +17,7 @@ import net.minecraft.world.phys.Vec3;
  * 二阶段行为池里所有行为的抽象基类，把一个「持续若干秒的战斗技能」抽象成可被每帧推进的小状态机。
  *
  * <p><b>为什么用「tick 推进 + finished 标志」而不是阻塞式脚本：</b>
- * 服务端战斗循环只有每 tick 一次的钩子（凋零的 {@code aiStep}），一个「持续 2.5~5 秒的压制弹幕」
+ * 服务端战斗循环只有每 tick 一次的钩子（凋灵的 {@code aiStep}），一个「持续 2.5~5 秒的压制弹幕」
  * 不可能由一次调用跑完；用线程或协程阻塞会脱离主线程时序、也无法每帧读取实时坐标。
  * 因此把长行为拆为 {@code onBegin(一次性初始化) + onTick(每帧推进一步) + checkFinished(自判结束)}，
  * 由 WitherBrain 每帧外部驱动 —— 行为自身不阻塞、不 sleep、不感知绝对时间。
@@ -104,7 +104,7 @@ public abstract class BaseBehavior {
         return brain == null ? null : brain.targetEntity();
     }
 
-    /** 水平方向：从凋零指向目标的单位向量（Y=0）。无目标或水平分量退化（几乎重合）时返回 {@link Vec3#ZERO}。 */
+    /** 水平方向：从凋灵指向目标的单位向量（Y=0）。无目标或水平分量退化（几乎重合）时返回 {@link Vec3#ZERO}。 */
     protected final Vec3 flatToTarget() {
         LivingEntity t = target();
         if (t == null) {

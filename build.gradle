@@ -276,7 +276,7 @@ tasks.register('generateBuildInfo') {
         def fp = buildFingerprint()
         new File(d, 'fusion_wither-build-info.txt').setText(
                 "fingerprint=${fp}\nbuilt=${stamp}\n", 'UTF-8')
-        println "[凋零] 构建指纹 = ${fp}  (${stamp})"
+        println "[凋灵] 构建指纹 = ${fp}  (${stamp})"
     }
 }
 

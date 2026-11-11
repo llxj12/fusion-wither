@@ -53,7 +53,7 @@ public final class ModSetup {
     @SubscribeEvent
     public static void onModifyEntityAttributes(EntityAttributeModificationEvent event) {
         if (!event.has(EntityType.WITHER, Attributes.MAX_HEALTH)) {
-            NewMod.LOGGER.warn("[凋零] 凋灵没有 MAX_HEALTH 属性，无法改血量");
+            NewMod.LOGGER.warn("[凋灵] 凋灵没有 MAX_HEALTH 属性，无法改血量");
             return;
         }
         // 只做存在性检查与记录；要调数值一律走 GameBusEvents 的永久修饰符。
@@ -67,18 +67,18 @@ public final class ModSetup {
         // 于是血量上限只能靠 GameBusEvents 里按当前上限反推的修饰符硬算回来 ——
         // 等于用一个自造的问题换一次校准，还让所有凋灵的基值都变错了。
         event.add(EntityType.WITHER, Attributes.KNOCKBACK_RESISTANCE);
-        NewMod.LOGGER.info("[凋零] 属性已注册（血量差值将在实体生成时用永久修饰符应用）");
+        NewMod.LOGGER.info("[凋灵] 属性已注册（血量差值将在实体生成时用永久修饰符应用）");
     }
 
     /**
-     * 把凋零 Boss 的运行时事件挂到游戏总线上 —— 本模组战斗逻辑的唯一接线点。
+     * 把凋灵 Boss 的运行时事件挂到游戏总线上 —— 本模组战斗逻辑的唯一接线点。
      *
      * <p><b>调用时机：</b>{@link NewMod} 构造器尾部调用一次，此时 MOD 总线上的注册已完成，
      * 挂游戏总线可以确保实体类型与配置都已可用。
      *
      * <p><b>为什么用 {@code addListener} 而不是把 {@link WitherBossHandler} 也标成订阅类：</b>
      * 处理方法的归属（哪个类处理哪种事件）与「事件挂在哪条总线」是两回事；
-     * 在这里显式列出全部入口，一眼就能看全凋零在运行期接管了哪几件事 ——
+     * 在这里显式列出全部入口，一眼就能看全凋灵在运行期接管了哪几件事 ——
      * 实体 tick 驱动（{@link WitherBossHandler#onLivingTick}）、致死伤害改写、
      * 弹射物拦截、爆炸判定改写、命令注册。
      *

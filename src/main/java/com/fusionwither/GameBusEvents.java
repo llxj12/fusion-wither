@@ -100,7 +100,7 @@ public final class GameBusEvents {
         // 结论：不再对未知求值规则做假设，改成「先算候选值 → 读回实际上限 → 按实际比例修正」。
         double curMax = wither.getMaxHealth();
         double targetMax = WitherConfig.WITHER_MAX_HEALTH;
-        NewMod.LOGGER.info("[凋零/诊断] 凋灵加入世界：血={} 上限={} 目标上限={}",
+        NewMod.LOGGER.info("[凋灵/诊断] 凋灵加入世界：血={} 上限={} 目标上限={}",
                 healthBefore, curMax, targetMax);
         applyHealthModifierToTarget(wither, targetMax);
 
@@ -131,7 +131,7 @@ public final class GameBusEvents {
         if (healthBefore > 0.0F && healthBefore <= maxBefore
                 && wither.getHealth() < wither.getMaxHealth()) {
             wither.setHealth(wither.getMaxHealth());
-            NewMod.LOGGER.info("[凋零] 凋灵 {} 出生血量已补满：{} -> {} / {}",
+            NewMod.LOGGER.info("[凋灵] 凋灵 {} 出生血量已补满：{} -> {} / {}",
                     wither.getUUID(), healthBefore, wither.getHealth(), wither.getMaxHealth());
         }
     }
@@ -157,7 +157,7 @@ public final class GameBusEvents {
     private static void applyHealthModifierToTarget(LivingEntity wither, double targetMax) {
         var instance = wither.getAttribute(Attributes.MAX_HEALTH);
         if (instance == null) {
-            NewMod.LOGGER.warn("[凋零/诊断] 取不到 MAX_HEALTH 属性 —— 血量修饰符无法应用");
+            NewMod.LOGGER.warn("[凋灵/诊断] 取不到 MAX_HEALTH 属性 —— 血量修饰符无法应用");
             return;
         }
 
@@ -172,12 +172,12 @@ public final class GameBusEvents {
                     amount, AttributeModifier.Operation.MULTIPLY_TOTAL));
 
             double actual = wither.getMaxHealth();
-            NewMod.LOGGER.info("[凋零/诊断] 第 {} 次尝试：倍率={} → 实际上限={}（目标 {}）",
+            NewMod.LOGGER.info("[凋灵/诊断] 第 {} 次尝试：倍率={} → 实际上限={}（目标 {}）",
                     attempt, amount, actual, targetMax);
 
             // 容差 1.0：血量是 float，且原版本身可能有取整误差，允许 1 点内即视为收敛
             if (Math.abs(actual - targetMax) <= 1.0D) {
-                NewMod.LOGGER.info("[凋零/诊断] 血量校准成功：上限={}", actual);
+                NewMod.LOGGER.info("[凋灵/诊断] 血量校准成功：上限={}", actual);
                 return;
             }
             if (actual <= 0.0D) {
@@ -187,7 +187,7 @@ public final class GameBusEvents {
             double factor = targetMax / actual;
             amount = (1.0D + amount) * factor - 1.0D;
         }
-        NewMod.LOGGER.warn("[凋零/诊断] 血量校准未在 3 次内收敛，当前上限={}（目标 {}）",
+        NewMod.LOGGER.warn("[凋灵/诊断] 血量校准未在 3 次内收敛，当前上限={}（目标 {}）",
                 wither.getMaxHealth(), targetMax);
     }
 }
