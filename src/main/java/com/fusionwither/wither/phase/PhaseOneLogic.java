@@ -19,6 +19,7 @@ import com.fusionwither.wither.WitherBrain;
 import com.fusionwither.wither.WitherConfig;
 import com.fusionwither.wither.behavior.BeDash;
 import com.fusionwither.wither.behavior.KiteMove;
+import com.fusionwither.wither.behavior.ProjectileDodge;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.phys.Vec3;
@@ -101,6 +102,13 @@ public final class PhaseOneLogic {
         // BE 走位尤其明显：段切换也写在技能 tick 里，
         // 切换帧被跳过就同时损失了一帧位移与一次段切换。
         tickCooldowns(brain);
+
+        // 平A 常态的自主躲箭：只在技能槽空闲时判定与执行。
+        // 技能窗口（p1Skill != 0）不躲，保证压制弹幕与 BE 走位的演出完整；
+        // 躲闪期间本帧位移与开火全部由它接管，因此这里必须整帧 return。
+        if (brain.p1Skill() == 0 && ProjectileDodge.tick(brain)) {
+            return;
+        }
 
         if (brain.p1Skill() == 1) {
             // 技能1：弹幕压制 —— **原地悬停输出**（用户定稿）
@@ -341,7 +349,7 @@ public final class PhaseOneLogic {
             // 平A 伤害用 IDLE_ATTACK_DAMAGE（6.0）而不是 SKULL_BLACK_DAMAGE（8.0）——
             // 让"平A 单发低伤"与"压制三头高伤"在伤害维度也可分辨，
             // 而不只是射速与弹头数量不同。
-            SkullVolley.fire(brain.wither(), t, false, WitherConfig.IDLE_ATTACK_DAMAGE);
+            SkullVolley.fire(brain.wither(), t, false, WitherConfig.IDLE_ATTACK_DAMAGE, true);
         }
         brain.setHeadShotCd(0, brain.randint(
                 WitherConfig.P1_BASIC_ATTACK_INTERVAL_MIN_TICKS,

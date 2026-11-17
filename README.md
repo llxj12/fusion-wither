@@ -6,7 +6,7 @@
 「压制弹幕」与「冲撞」。
 
 - 模组 id：`fusion_wither`
-- 版本：1.0.0
+- 版本：1.1.0
 - 作者：llxj12
 - 许可：MIT（见 [LICENSE](LICENSE)）
 
@@ -17,18 +17,26 @@ Java Edition fight loop with the Bedrock Edition attack set.
 
 - **Phase 1 (100%–50% HP)** — ranged kiting at 6.5–8.5 blocks, driven by two independent skill timers:
   a staggered three-head barrage, and 1–2 high-speed Bedrock-style dashes (no shots during a dash).
+  Between skills it also dodges player arrows: it reacts to the release of any arrow within 28 blocks
+  (no hit prediction), performing a random 2.4-block strafe or rise/drop over 4 ticks, on a 9–15 s cooldown.
+  Every ordinary shot has a 65% chance to be replaced by a blue skull (1.5× damage, slightly faster flight,
+  breaks anything the wither can destroy); after a blue skull the next two shots are forced black.
 - **Enrage (the moment HP drops below 50%)** — shorter shot intervals and a switch to straight-line charges.
 - **Phase 2** — falls straight down, explodes 4 ticks after landing, then hovers 2–3 blocks above the ground,
   deflects *all* projectiles (melee and explosions still work), and picks between barrage and ground-slam
   from a weighted behaviour pool, with a low-pressure idle window when both are on cooldown.
+- **Spawn spin & rise** — the vanilla wither spawn ritual is untouched (hover, soul particles, health-bar charge,
+  ending explosion and roar); the model spins faster and faster on the client so the peak speed lands exactly
+  when the bar finishes filling, then the wither rises to its phase-1 hover height before the fight starts.
+  Toggle with `spawnSpinPeakDegreesPerTick` / `spawnAscendTicks`.
 - **Death sequence** — the lethal hit is rewritten into a real fatal blow so vanilla `die()` still runs
   (loot, XP and kill credit keep vanilla semantics); the model is stretched over 80 ticks while the
   death sound pitches down.
 
-**Install** — put `fusion_wither-1.0.0.jar` into `mods/` on both client and server (client is needed only
+**Install** — put `fusion_wither-1.1.0.jar` into `mods/` on both client and server (client is needed only
 to see the death animation). No extra dependencies.
 
-**Config** — 43 tuning values are generated in `config/fusion_wither-common.toml` in five groups
+**Config** — 56 tuning values are generated in `config/fusion_wither-common.toml` in five groups
 (`wither` / `phase1` / `shots` / `phase2` / `misc`); `/reload` or a restart applies changes. Defaults are
 the accepted game feel, so a fresh install behaves identically to the reviewed build.
 
@@ -51,11 +59,23 @@ Licensed under MIT; build with `./gradlew build --offline`.
 
 ## 玩法机制
 
+**出生演出**：完整保留原版激活动画（原地悬停、灵魂粒子、血条充能、结尾爆炸与吼声）：
+凋灵的模型在演出期间按三段式加速旋转：前 1/3 加速到峰值的 2/3，中间 1/3 推到峰值，最后 1/3 保持峰值匀速转糊；峰值正好落在血条充满、血量满格的那一 tick；
+随后用 20 tick 匀速升到一阶段悬停高度（6 格），抬升期间不索敌、不放技能、不射击，结束即开打。
+旋转是纯客户端渲染偏移（`spawnSpinPeakDegreesPerTick`，设 0 关闭），升天时长用 `spawnAscendTicks` 调（设 0 关闭）。
+
 **一阶段（血量 100% ~ 50%）**：远程风筝。
 凋灵维持 6.5~8.5 格的距离，行为由两个彼此独立的技能构成：
 
 - **压制弹幕**：三头错峰齐射凋灵之首，窗口内持续压制；
-- **BE 位移**：1~2 段高速直线位移，位移期间不发射任何弹幕。
+- **蓝色凋灵之首**：一阶段每一发普通弹有 65% 概率被替换成蓝弹（伤害 1.5 倍、初速略高于普通弹、
+  可破坏凋灵能破坏的方块、命中附加凋零效果），蓝弹之后连续 2 发强制黑色，第 3 发起恢复掷骰；
+- **BE 位移**：1~2 段高速直线位移，位移期间不发射任何弹幕；
+- **自主躲箭**：只在平A 常态生效（技能窗口不躲）。冷却转好时，只要 28 格内有玩家把箭射出去
+  （不做命中推演，擦身而过的箭也会反应），就随机做一次短距离横移或上升/下降
+  （2.4 格 / 4 tick，位移前重后轻：第一帧就挪掉 40%，近距离才来得及脱靶），随后进入 9~15 秒随机冷却。
+  若此时水平距离已低于风筝后撤阈值（6.5 格），这次躲闪会顺带向远处偏，直接回到风筝带；
+  距离本来就够远时不后撤。三叉戟不在躲闪范围内。
 
 **狂暴（血量跌破 50% 的瞬间起）**：射击间隔整体缩短，语调与节奏切换为直线冲锋式进攻。
 
@@ -95,8 +115,8 @@ Licensed under MIT; build with `./gradlew build --offline`.
 | --- | --- |
 | `wither` | 最大血量、二阶段阈值、出生苏醒时长 |
 | `phase1` | 风筝距离、双技能冷却与窗口、BE 位移速度与段数 |
-| `shots` | 黑/蓝凋灵之首伤害、凋零效果时长、三头射击间隔 |
-| `phase2` | 压制高度、行为池权重、冲撞伤害/速度/破坏方块、入场下坠 |
+| `shots` | 黑弹伤害、蓝弹替换概率与锁定期、蓝弹伤害倍数、凋零效果时长、三头射击间隔 |
+| `phase2` | 压制高度、行为池权重、冲撞伤害/速度/破坏方块、入场下坠、召唤骷髅石剑附魔概率 |
 | `misc` | 回血速率、死亡演出时长与音效间隔、行为序列日志开关 |
 
 改动后执行 `/reload` 或重启服务端生效。所有默认值就是已通过验收的那一版手感；
@@ -108,7 +128,7 @@ Licensed under MIT; build with `./gradlew build --offline`.
 ./gradlew build --offline
 ```
 
-产物：`build/libs/fusion_wither-1.0.0.jar`。
+产物：`build/libs/fusion_wither-1.1.0.jar`。
 首次构建需要本地已预热 ForgeGradle 依赖（`GRADLE_USER_HOME`），全程不联网。
 
 单元测试针对纯数值配置类，默认不执行（本机 Gradle 测试 worker 在中文路径下无法启动），

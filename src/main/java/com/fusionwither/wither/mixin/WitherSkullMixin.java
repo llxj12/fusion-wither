@@ -22,13 +22,15 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * 把凋灵之首的命中效果从原版写死的数值，改成可配置的数值。
  *
  * <p><b>为什么需要这个 Mixin：</b>原版 {@code WitherSkull.m_5790_} 里的伤害是字面量常量
  * （字节码 {@code ldc 8.0f}），不读任何字段，所以 {@link WitherConfig#SKULL_BLACK_DAMAGE}、
- * {@link WitherConfig#SKULL_BLUE_DAMAGE}、{@link WitherConfig#IDLE_ATTACK_DAMAGE}
+ * 蓝弹伤害倍数 {@link WitherConfig#BLUE_SKULL_DAMAGE_MULTIPLIER}、
+ * {@link WitherConfig#IDLE_ATTACK_DAMAGE}
  * 在改造前永远不生效；蓝色弹幕的凋灵等级与时长同样是写死的 II 级 / 40 tick。
  *
  * <p><b>作用范围被严格限制：</b>只有 {@link SkullVolley} 发出、并在
@@ -101,6 +103,29 @@ public abstract class WitherSkullMixin {
                     MobEffects.WITHER,
                     WitherConfig.SKULL_BLUE_WITHER_DURATION_TICKS,
                     WitherConfig.SKULL_BLUE_WITHER_LEVEL));
+        }
+    }
+
+    /**
+     * 把「危险弹幕」的惯性从原版 0.73 统一成普通弹的 0.95。
+     *
+     * <p><b>为什么要改：</b>原版 {@code WitherSkull.m_6884_()} 对危险弹幕返回 0.73，
+     * 普通弹是 0.95。惯性越低每 tick 衰减越快，即使初速相同，蓝弹也会在几 tick 内被黑弹反超，
+     * 实机表现就是「蓝弹太慢、根本打不中人」。统一惯性后，蓝弹只由
+     * {@code BLUE_SKULL_SPEED_MULTIPLIER}（默认 1.10）提供"比普通快一点点"的差异。</p>
+     *
+     * <p><b>为什么判据用 {@code isDangerous()} 而不是 {@code SkullVolley.isBlue()}：</b>
+     * 危险标志是同步字段，客户端与服务端都会得到同一结果，轨迹预测不会分叉；
+     * 而 {@code BLUE_SKULLS} 标记只存在于服务端，客户端查不到会导致两端飞行速度不一致。
+     * 原版与其它模组都不会生成危险弹幕，因此实际影响范围等同于"只改本模组的蓝弹"。</p>
+     *
+     * @param cir 返回值回调；命中危险弹幕时改写为 0.95
+     */
+    @Inject(method = "m_6884_()F", at = @At("RETURN"), cancellable = true)
+    private void fusion$blueSkullInertia(CallbackInfoReturnable<Float> cir) {
+        WitherSkull self = (WitherSkull) (Object) this;
+        if (self.isDangerous()) {
+            cir.setReturnValue(0.95F);
         }
     }
 }

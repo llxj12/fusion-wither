@@ -88,6 +88,25 @@ public final class WitherConfig {
      *  按原版规则本就没有激活动画。本值为 220 即"与原版一致"；调大 = 苏醒更久。</p>*/
     public static int WITHER_AWAKENING_TICKS = 220;
 
+    /** 出生苏醒期的旋转**峰值**角速度（度/tick）。【实机反馈新增，0 = 关闭旋转】
+     *  <p>用户口径：苏醒全程「越转越快」，速度在苏醒结束的瞬间达到峰值，
+     *  同一时刻血条恰好充能完成、凋灵满血，随后进入升天。</p>
+     *  <p>实现上是纯客户端渲染偏移（服务端改 yRot 看不到身体转动，原因见
+     *  {@code WitherSpawnSpinHandler} 注释）。速度曲线为三段式（每段各占 1/3 时长）：
+     *  <pre>段1：0 → 本值 × 2/3   线性加速
+     * 段2：本值 × 2/3 → 本值  线性加速（加速度是段1 的一半）
+     * 段3：保持本值          匀速</pre>
+     *  即起点静止、最后 1/3 匀速转糊，峰值恰好在苏醒结束那一 tick。
+     *  <b>实机反馈下调 360 → 90 → 45</b>：360°/tick（每秒 20 整圈）只剩频闪；
+     *  90°/tick 仍然偏快；45°/tick（每秒 2.25 圈）既有明确旋转感又能看出加速。</p>*/
+    public static double SPAWN_SPIN_PEAK_DEGREES_PER_TICK = 45.0;
+
+    /** 苏醒结束后的「升天」时长（tick）。【实机反馈新增，0 = 关闭升天】
+     *  <p>原版演出完整保留（灵魂粒子/血条充能/结尾爆炸/吼声），升天发生在其**之后**：
+     *  用坐标驱动从出生地面匀速抬到一阶段悬停高度（{@code P1_ALTITUDE} = 6 格），
+     *  期间禁止阶段评估、技能、射击与回血，结束后直接进入一阶段战斗。</p>*/
+    public static int SPAWN_ASCEND_TICKS = 20;
+
     /** 二阶段回血上限的余量（点）。【实机反馈新增，用户给定数值 3】
      *  <p>进入二阶段后回血最多到「二阶段最大血量 300 − 本值」= <b>297</b>，
      *  即永远不越回 50% 阈值以上。</p>
@@ -299,6 +318,44 @@ public final class WitherConfig {
     public static final double P1_BE_DASH_ARC_DEGREES = 180.0;
 
     // =====================================================================
+    //  五·续、第一阶段 · 自主躲箭（只在平A 常态执行）
+    // =====================================================================
+    //
+    //  用户规格（实机反馈新增）：
+    //    · 冷却就绪时，**检测到玩家射出箭**就先尝试躲闪（不做命中推演，贴近生物本能），
+    //      随机做一次短距离平移，或上升 / 下降；
+    //    · 冷却 9~15 秒随机；
+    //    · 只在平A 常态执行 —— 压制弹幕与 BE 位移进行中一律不躲，保证技能演出完整。
+    //
+    //  为什么参数集中在 WitherBrain：躲箭状态（冷却、剩余 tick、每帧位移）和其他技能
+    //  一样全部挂在凋灵身上，PhaseOneLogic 不持有字段，避免同一语义在多处漂移。
+
+    /** 是否启用一阶段平A 常态的自主躲箭。*/
+    public static boolean P1_DODGE_ENABLED = true;
+
+    /** 躲箭冷却下限（tick）。9 秒 = 180 tick。*/
+    public static int P1_DODGE_CD_MIN_TICKS = 180;
+
+    /** 躲箭冷却上限（tick）。15 秒 = 300 tick。*/
+    public static int P1_DODGE_CD_MAX_TICKS = 300;
+
+    /** 检测半径（格）：只扫描这个范围内的玩家箭矢。*/
+    public static double P1_DODGE_DETECT_RADIUS = 28.0;
+
+    /** 「刚射出」反应窗口（tick）：箭离弦后的这么多 tick 内被扫到，就当作「玩家射箭了」立刻尝试躲闪。
+     *  <p><b>为什么不再做命中推演：</b>用户要求贴近生物本能 —— 听到弓弦响、看到箭出膛就先动，
+     *  而不是精确算完弹道确认「这一箭会命中我」才躲。窗口取 3 tick（0.15 秒）：
+     *  足以覆盖同一帧生成到下一帧被扫描到的延迟，又不会把「已经在飞的老箭」当成新箭反复触发。</p>*/
+    public static int P1_DODGE_REACT_TICKS = 3;
+
+    /** 单次躲闪的位移距离（格）。取值要大于自身半宽 + 箭半径，否则躲了等于没躲。*/
+    public static double P1_DODGE_DISTANCE = 2.4;
+
+    /** 单次躲闪的持续 tick 数：距离 / 时长 = 每 tick 位移，决定躲闪的爆发感。*/
+    public static int P1_DODGE_DURATION_TICKS = 4;
+
+
+    // =====================================================================
     //  六、第一阶段 · 平A（空窗期主头单发，伤害低于弹幕压制）
     // =====================================================================
     //
@@ -378,19 +435,28 @@ public final class WitherConfig {
     //  八、弹幕头颅（黑/蓝凋灵之首的伤害、效果与飞行参数）
     // =====================================================================
     //
-    //  这一组决定"一轮弹幕的构成与每颗头的威力"：发数与蓝头位置、黑/蓝头直击伤害、
-    //  蓝头附带的凋零效果，以及弹幕发射点偏移与初速度。
+    //  这一组决定"每颗头的威力"与"蓝弹出现的节奏"：黑弹直击伤害、蓝弹替换概率与锁定期、
+    //  蓝弹伤害倍数、蓝弹附带的凋零效果，以及弹幕发射点偏移与初速度。
     //  调大伤害/凋灵等级 = 玩家血量压力更大，逼玩家更早进入高压状态。
-
-    /** 每轮弹幕的发数。3 黑 1 蓝 = 4。【规格给定】*/
-    public static final int BARRAGE_SKULLS_PER_CYCLE = 4;
-    /** 一轮里蓝色头颅出现在第几发（1-based）。【规格给定】3 黑 1 蓝。*/
-    public static final int BARRAGE_BLUE_AT_INDEX = 4;
 
     /** 黑头颅直击伤害（点）。【我定的】原版凋灵头颅是 8。*/
     public static double SKULL_BLACK_DAMAGE = 8.0;
-    /** 蓝头颅直击伤害（点）。【我定的】带凋零 II。*/
-    public static double SKULL_BLUE_DAMAGE = 12.0;
+
+    /** 一阶段每发普通凋灵之首被替换成蓝色弹的概率（0~1）。【规格给定】65%。
+     *  <p>判定对象是「实际发射出去的那一发普通弹」：平A、压制弹幕、狂暴三头射都参与。
+     *  二阶段不参与（本项只在第一阶段语义下生效，见 {@code SkullVolley}）。</p>*/
+    public static double BLUE_SKULL_CHANCE = 0.65;
+    /** 蓝色弹初速度相对普通弹的倍数。【规格给定】比普通弹快一点点，默认 1.10。
+     *  <p>注意惯性：原版「危险弹幕」的惯性是 0.73（普通 0.95），每 tick 衰减更快，
+     *  只提初速仍会很快被普通弹反超。因此 {@code WitherSkullMixin} 会把蓝弹的惯性
+     *  回落成普通弹的 0.95，再叠加这里的初速倍数，才是全程"略快"。</p>*/
+    public static double BLUE_SKULL_SPEED_MULTIPLIER = 1.10;
+    /** 发射一枚蓝色弹后，接下来强制为黑色的普通弹数量。【规格给定】2 发。
+     *  <p>计数按单发弹幕而非齐射：蓝弹之后连打 2 发黑弹，第 3 发起才重新获得替换机会。</p>*/
+    public static int BLUE_SKULL_LOCKOUT_SHOTS = 2;
+    /** 蓝色弹直击伤害相对「被替换那一发普通弹」的倍数。【规格给定】1.5 倍。
+     *  <p>以被替换的那一发为基准而不是固定值：平A 6 点 → 9 点，压制/狂暴 8 点 → 12 点。</p>*/
+    public static double BLUE_SKULL_DAMAGE_MULTIPLIER = 1.5;
     /** 蓝头颅附加凋零效果等级（0=凋零 I）。【我定的】*/
     public static final int SKULL_BLUE_WITHER_LEVEL = 1;
     /** 蓝头颅凋零效果持续（tick）。【我定的】10 秒。*/
@@ -482,8 +548,10 @@ public final class WitherConfig {
     /** 冲撞最大距离（格）。【我定的】防止冲出加载范围。
      *  <p>【实机反馈调整】原 24 格在实战中"刚起步就停"。</p>*/
     public static final double CRASH_MAX_DISTANCE = 36.0;
-    /** 冲撞直接伤害（点）。【我定的】*/
-    public static double CRASH_IMPACT_DAMAGE = 10.0;
+    /** 冲撞直接伤害（点）。【我定的】
+     *  <p>【本轮调整】10 → 15：冲锋途中首次接触即结算一次，且结算前清零玩家无敌帧，
+     *  不再被前一枚弹幕的伤后无敌帧吞掉；仍按物理伤害由护甲减免。</p>*/
+    public static double CRASH_IMPACT_DAMAGE = 15.0;
     /** 冲撞爆炸威力。【我定的】4.0 会炸石头。*/
     public static final float CRASH_EXPLOSION_POWER = 3.0f;
     /** 冲撞是否破坏地形（false = 只伤害不破方块）。【规格给定】要破坏。*/
@@ -662,6 +730,13 @@ public final class WitherConfig {
     public static final int PHASE2_SKELETON_MAX_ALIVE = 4;
     /** 补召唤检查间隔（tick）。*/
     public static final int PHASE2_SKELETON_REFILL_INTERVAL_TICKS = 40;
+
+    /** 召唤出的凋灵骷髅主手石剑的附魔中奖率下限（0~1）。【规格给定】7%。
+     *  <p>三个附魔（锋利 / 火焰附加 / 击退）共用同一个概率值：每只骷髅生成时先在
+     *  [下限, 上限] 区间随机抽一个概率，再让三个附魔各自独立掷骰。</p>*/
+    public static double PHASE2_SKELETON_ENCHANT_CHANCE_MIN = 0.07;
+    /** 召唤出的凋灵骷髅主手石剑的附魔中奖率上限（0~1）。【规格给定】15%。*/
+    public static double PHASE2_SKELETON_ENCHANT_CHANCE_MAX = 0.15;
 
     /** 演出（怒吼/护甲闪光）时长（tick）。【规格给定】1 秒 = 20 tick。
      *  <p>【实机反馈调整】规格要求"1 秒"，但实测玩家感觉"刚进去就动了"。
@@ -854,6 +929,8 @@ public final class WitherConfig {
     private static final ForgeConfigSpec.ConfigValue<Double> V_WITHER_MAX_HEALTH;
     private static final ForgeConfigSpec.ConfigValue<Double> V_PHASE2_THRESHOLD;
     private static final ForgeConfigSpec.ConfigValue<Integer> V_WITHER_AWAKENING_TICKS;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_SPAWN_SPIN_PEAK_DEGREES_PER_TICK;
+    private static final ForgeConfigSpec.ConfigValue<Integer> V_SPAWN_ASCEND_TICKS;
 
     private static final ForgeConfigSpec.ConfigValue<Double> V_P1_KITE_RETREAT_DISTANCE;
     private static final ForgeConfigSpec.ConfigValue<Double> V_P1_KITE_APPROACH_DISTANCE;
@@ -867,9 +944,19 @@ public final class WitherConfig {
     private static final ForgeConfigSpec.ConfigValue<Double> V_P1_BE_DASH_SPEED_MAX;
     private static final ForgeConfigSpec.ConfigValue<Integer> V_P1_BE_DASH_SEGMENTS_MIN;
     private static final ForgeConfigSpec.ConfigValue<Integer> V_P1_BE_DASH_SEGMENTS_MAX;
+    private static final ForgeConfigSpec.ConfigValue<Boolean> V_P1_DODGE_ENABLED;
+    private static final ForgeConfigSpec.ConfigValue<Integer> V_P1_DODGE_CD_MIN_TICKS;
+    private static final ForgeConfigSpec.ConfigValue<Integer> V_P1_DODGE_CD_MAX_TICKS;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_P1_DODGE_DETECT_RADIUS;
+    private static final ForgeConfigSpec.ConfigValue<Integer> V_P1_DODGE_REACT_TICKS;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_P1_DODGE_DISTANCE;
+    private static final ForgeConfigSpec.ConfigValue<Integer> V_P1_DODGE_DURATION_TICKS;
 
     private static final ForgeConfigSpec.ConfigValue<Double> V_SKULL_BLACK_DAMAGE;
-    private static final ForgeConfigSpec.ConfigValue<Double> V_SKULL_BLUE_DAMAGE;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_BLUE_SKULL_CHANCE;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_BLUE_SKULL_SPEED_MULTIPLIER;
+    private static final ForgeConfigSpec.ConfigValue<Integer> V_BLUE_SKULL_LOCKOUT_SHOTS;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_BLUE_SKULL_DAMAGE_MULTIPLIER;
     private static final ForgeConfigSpec.ConfigValue<Integer> V_SKULL_BLUE_WITHER_DURATION_TICKS;
     private static final ForgeConfigSpec.ConfigValue<Integer> V_BARRAGE_MAIN_SHOT_INTERVAL_TICKS;
     private static final ForgeConfigSpec.ConfigValue<Integer> V_BARRAGE_SIDE_SHOT_INTERVAL_MIN_TICKS;
@@ -890,6 +977,8 @@ public final class WitherConfig {
     private static final ForgeConfigSpec.ConfigValue<Boolean> V_ARMOR_BLOCKS_PROJECTILES;
     private static final ForgeConfigSpec.ConfigValue<Boolean> V_PHASE2_ENTRY_FALL_ENABLED;
     private static final ForgeConfigSpec.ConfigValue<Double> V_PHASE2_ENTRY_FALL_SPEED;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_SKELETON_ENCHANT_CHANCE_MIN;
+    private static final ForgeConfigSpec.ConfigValue<Double> V_SKELETON_ENCHANT_CHANCE_MAX;
 
     private static final ForgeConfigSpec.ConfigValue<Double> V_REGEN_NORMAL_PER_TICK;
     private static final ForgeConfigSpec.ConfigValue<Double> V_REGEN_HIGH_DESIRE_PER_TICK;
@@ -912,6 +1001,13 @@ public final class WitherConfig {
                 .defineInRange("phase2Threshold", 0.50D, 0.05D, 0.95D);
         V_WITHER_AWAKENING_TICKS = b.comment("出生苏醒演出时长（tick）。原版为 220（约 11 秒）。")
                 .defineInRange("awakeningTicks", 220, 0, 2000);
+        V_SPAWN_SPIN_PEAK_DEGREES_PER_TICK = b.comment(
+                        "苏醒期旋转的峰值角速度（度/tick，0 = 关闭）。速度曲线分三段：前 1/3 加速到本值的 2/3，"
+                                + "中间 1/3 推到本值，最后 1/3 保持本值匀速；苏醒结束时正好达到峰值。")
+                .defineInRange("spawnSpinPeakDegreesPerTick", 45.0D, 0.0D, 3600.0D);
+        V_SPAWN_ASCEND_TICKS = b.comment(
+                        "苏醒结束后的升天时长（tick，0 = 关闭）。匀速抬到一阶段悬停高度。")
+                .defineInRange("spawnAscendTicks", 20, 0, 200);
         b.pop();
 
         // ---- 一阶段：风筝与技能节奏 ----
@@ -941,6 +1037,20 @@ public final class WitherConfig {
                 .defineInRange("beDashSegmentsMin", 1, 1, 5);
         V_P1_BE_DASH_SEGMENTS_MAX = b.comment("单次 BE 位移段数上限。")
                 .defineInRange("beDashSegmentsMax", 2, 1, 5);
+        V_P1_DODGE_ENABLED = b.comment("是否启用一阶段平A 常态的自主躲箭。")
+                .define("dodgeEnabled", true);
+        V_P1_DODGE_CD_MIN_TICKS = b.comment("躲箭冷却下限（tick）。9 秒 = 180。")
+                .defineInRange("dodgeCdMinTicks", 180, 0, 5000);
+        V_P1_DODGE_CD_MAX_TICKS = b.comment("躲箭冷却上限（tick）。15 秒 = 300。")
+                .defineInRange("dodgeCdMaxTicks", 300, 0, 5000);
+        V_P1_DODGE_DETECT_RADIUS = b.comment("躲箭的箭矢检测半径（格）。")
+                .defineInRange("dodgeDetectRadius", 28.0D, 4.0D, 64.0D);
+        V_P1_DODGE_REACT_TICKS = b.comment("「刚射出」反应窗口（tick）：箭离弦后这么多 tick 内被扫到就算「玩家射箭了」。")
+                .defineInRange("dodgeReactTicks", 3, 1, 10);
+        V_P1_DODGE_DISTANCE = b.comment("单次躲闪的位移距离（格）。")
+                .defineInRange("dodgeDistance", 2.4D, 0.5D, 8.0D);
+        V_P1_DODGE_DURATION_TICKS = b.comment("单次躲闪的持续 tick 数。")
+                .defineInRange("dodgeDurationTicks", 4, 1, 20);
         b.pop();
 
         // ---- 射击：三头独立冷却与弹幕伤害 ----
@@ -948,8 +1058,14 @@ public final class WitherConfig {
                 .push("shots");
         V_SKULL_BLACK_DAMAGE = b.comment("黑色凋灵之首直击伤害（点）。")
                 .defineInRange("blackSkullDamage", 8.0D, 0.0D, 100.0D);
-        V_SKULL_BLUE_DAMAGE = b.comment("蓝色凋灵之首直击伤害（点）。")
-                .defineInRange("blueSkullDamage", 12.0D, 0.0D, 100.0D);
+        V_BLUE_SKULL_CHANCE = b.comment("一阶段每发普通弹被替换成蓝弹的概率（0~1）。")
+                .defineInRange("blueSkullChance", 0.65D, 0.0D, 1.0D);
+        V_BLUE_SKULL_SPEED_MULTIPLIER = b.comment("蓝弹初速度相对普通弹的倍数（惯性已统一为普通弹的 0.95）。")
+                .defineInRange("blueSkullSpeedMultiplier", 1.10D, 1.0D, 3.0D);
+        V_BLUE_SKULL_LOCKOUT_SHOTS = b.comment("发射蓝弹后强制为黑色的普通弹数量（按单发计）。")
+                .defineInRange("blueSkullLockoutShots", 2, 0, 100);
+        V_BLUE_SKULL_DAMAGE_MULTIPLIER = b.comment("蓝弹直击伤害相对同发普通弹伤害的倍数。")
+                .defineInRange("blueSkullDamageMultiplier", 1.5D, 1.0D, 10.0D);
         V_SKULL_BLUE_WITHER_DURATION_TICKS = b.comment("蓝色弹附加的凋零效果时长（tick）。")
                 .defineInRange("blueWitherDurationTicks", 200, 0, 10000);
         V_BARRAGE_MAIN_SHOT_INTERVAL_TICKS = b.comment("压制弹幕期主头射击间隔（tick）。")
@@ -981,8 +1097,8 @@ public final class WitherConfig {
                 .defineInRange("crashWeightHigh", 70, 0, 1000);
         V_WEIGHT_BARRAGE_HIGH = b.comment("高攻击欲望下的压制弹幕权重。")
                 .defineInRange("barrageWeightHigh", 30, 0, 1000);
-        V_CRASH_IMPACT_DAMAGE = b.comment("冲撞命中伤害（点）。")
-                .defineInRange("crashImpactDamage", 10.0D, 0.0D, 100.0D);
+        V_CRASH_IMPACT_DAMAGE = b.comment("冲撞命中伤害（点）。冲锋途中首次接触即结算，不受伤后无敌帧影响。")
+                .defineInRange("crashImpactDamage", 15.0D, 0.0D, 100.0D);
         V_CRASH_SPEED = b.comment("冲撞水平速度（格/tick）。")
                 .defineInRange("crashSpeed", 2.20D, 0.1D, 5.0D);
         V_CRASH_BREAK_BLOCKS = b.comment("冲撞是否破坏方块（黑名单内的方块始终保护）。")
@@ -993,6 +1109,11 @@ public final class WitherConfig {
                 .define("phase2EntryFallEnabled", true);
         V_PHASE2_ENTRY_FALL_SPEED = b.comment("入场下坠速度（格/tick）。")
                 .defineInRange("phase2EntryFallSpeed", 1.2D, 0.1D, 5.0D);
+        V_SKELETON_ENCHANT_CHANCE_MIN = b.comment("召唤骷髅石剑附魔中奖率下限（0~1）。"
+                        + "三个附魔共用同一概率值，命中后等级随机 I~III。")
+                .defineInRange("skeletonEnchantChanceMin", 0.07D, 0.0D, 1.0D);
+        V_SKELETON_ENCHANT_CHANCE_MAX = b.comment("召唤骷髅石剑附魔中奖率上限（0~1）。")
+                .defineInRange("skeletonEnchantChanceMax", 0.15D, 0.0D, 1.0D);
         b.pop();
 
         // ---- 回血与演出 ----
@@ -1025,6 +1146,8 @@ public final class WitherConfig {
         WITHER_MAX_HEALTH = V_WITHER_MAX_HEALTH.get();
         PHASE2_THRESHOLD = V_PHASE2_THRESHOLD.get();
         WITHER_AWAKENING_TICKS = V_WITHER_AWAKENING_TICKS.get();
+        SPAWN_SPIN_PEAK_DEGREES_PER_TICK = V_SPAWN_SPIN_PEAK_DEGREES_PER_TICK.get();
+        SPAWN_ASCEND_TICKS = V_SPAWN_ASCEND_TICKS.get();
 
         P1_KITE_RETREAT_DISTANCE = V_P1_KITE_RETREAT_DISTANCE.get();
         P1_KITE_APPROACH_DISTANCE = V_P1_KITE_APPROACH_DISTANCE.get();
@@ -1038,9 +1161,19 @@ public final class WitherConfig {
         P1_BE_DASH_SPEED_MAX = V_P1_BE_DASH_SPEED_MAX.get();
         P1_BE_DASH_SEGMENTS_MIN = V_P1_BE_DASH_SEGMENTS_MIN.get();
         P1_BE_DASH_SEGMENTS_MAX = V_P1_BE_DASH_SEGMENTS_MAX.get();
+        P1_DODGE_ENABLED = V_P1_DODGE_ENABLED.get();
+        P1_DODGE_CD_MIN_TICKS = V_P1_DODGE_CD_MIN_TICKS.get();
+        P1_DODGE_CD_MAX_TICKS = V_P1_DODGE_CD_MAX_TICKS.get();
+        P1_DODGE_DETECT_RADIUS = V_P1_DODGE_DETECT_RADIUS.get();
+        P1_DODGE_REACT_TICKS = V_P1_DODGE_REACT_TICKS.get();
+        P1_DODGE_DISTANCE = V_P1_DODGE_DISTANCE.get();
+        P1_DODGE_DURATION_TICKS = V_P1_DODGE_DURATION_TICKS.get();
 
         SKULL_BLACK_DAMAGE = V_SKULL_BLACK_DAMAGE.get();
-        SKULL_BLUE_DAMAGE = V_SKULL_BLUE_DAMAGE.get();
+        BLUE_SKULL_CHANCE = V_BLUE_SKULL_CHANCE.get();
+        BLUE_SKULL_SPEED_MULTIPLIER = V_BLUE_SKULL_SPEED_MULTIPLIER.get();
+        BLUE_SKULL_LOCKOUT_SHOTS = V_BLUE_SKULL_LOCKOUT_SHOTS.get();
+        BLUE_SKULL_DAMAGE_MULTIPLIER = V_BLUE_SKULL_DAMAGE_MULTIPLIER.get();
         SKULL_BLUE_WITHER_DURATION_TICKS = V_SKULL_BLUE_WITHER_DURATION_TICKS.get();
         BARRAGE_MAIN_SHOT_INTERVAL_TICKS = V_BARRAGE_MAIN_SHOT_INTERVAL_TICKS.get();
         BARRAGE_SIDE_SHOT_INTERVAL_MIN_TICKS = V_BARRAGE_SIDE_SHOT_INTERVAL_MIN_TICKS.get();
@@ -1061,6 +1194,8 @@ public final class WitherConfig {
         ARMOR_BLOCKS_PROJECTILES = V_ARMOR_BLOCKS_PROJECTILES.get();
         PHASE2_ENTRY_FALL_ENABLED = V_PHASE2_ENTRY_FALL_ENABLED.get();
         PHASE2_ENTRY_FALL_SPEED = V_PHASE2_ENTRY_FALL_SPEED.get();
+        PHASE2_SKELETON_ENCHANT_CHANCE_MIN = V_SKELETON_ENCHANT_CHANCE_MIN.get();
+        PHASE2_SKELETON_ENCHANT_CHANCE_MAX = V_SKELETON_ENCHANT_CHANCE_MAX.get();
 
         REGEN_NORMAL_PER_TICK = V_REGEN_NORMAL_PER_TICK.get();
         REGEN_HIGH_DESIRE_PER_TICK = V_REGEN_HIGH_DESIRE_PER_TICK.get();

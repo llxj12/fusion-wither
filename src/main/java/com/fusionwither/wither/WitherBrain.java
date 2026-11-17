@@ -82,6 +82,15 @@ public final class WitherBrain {
     /** 出生苏醒日志去重标志：保证「进入苏醒」与「苏醒结束」两条日志各自只打一次，避免每帧刷屏。 */
     private boolean awakeningAnnounced = false;
 
+    /** 出生阶段是否真的经历过原版苏醒：只有经历过，苏醒结束后才触发「升天」。 */
+    private boolean awakeningSeen = false;
+    /** 出生升天剩余 tick：>0 表示正在升天。 */
+    private int spawnAscendLeft = 0;
+    /** 出生升天每帧的竖直步长（格）：启动时一次算好，避免每帧做除法累积误差。 */
+    private double spawnAscendStep = 0.0D;
+    /** 出生升天的一次性闸门：置位后不再尝试启动，避免后期自然下落后被误判成出生升天。 */
+    private boolean spawnAscendDone = false;
+
     /** 二阶段当前正在执行的行为，null 表示空闲；由 phaseTwoDispatch() 写入，stopAllBehaviors() 清空。 */
     private BaseBehavior active = null;
     /** 压制弹幕行为实例，与 crash 一样在构造时创建一次、全程复用（行为本身无可变字段，状态留在本脑字段里）。 */
@@ -138,6 +147,20 @@ public final class WitherBrain {
 
     /** 技能2 的冷却，单位 tick：与 p1Skill1Cd 同规则，同样从技能结束起算。 */
     private int p1Skill2Cd = 0;
+
+    /** 躲箭冷却，单位 tick：躲闪开始的那一帧重置为 180~300 的随机值；>0 时不再检测与触发。 */
+    private int p1DodgeCd = 0;
+
+    /** 躲闪剩余 tick：>0 表示正在执行躲闪位移，这期间本帧的位移由躲闪接管，且不开火。 */
+    private int p1DodgeTicks = 0;
+
+    /** 躲闪的**总**位移（格），由 {@link #startDodge} 一次性写入；每帧只按权重取一部分。 */
+    private double dodgeTotalX = 0.0D;
+    private double dodgeTotalY = 0.0D;
+    private double dodgeTotalZ = 0.0D;
+
+    /** 躲闪总时长（tick），与 {@link #p1DodgeTicks} 配合换算「当前是第几帧」。 */
+    private int p1DodgeTotalTicks = 1;
 
     /** 本次 BE 走位要冲的段数（1~2 段），由技能开始时随机决定，段间可换方向。 */
     private int beDashSegments = 1;
@@ -275,6 +298,13 @@ public final class WitherBrain {
         // ③ 出生苏醒：复用原版 invulnerableTicks 的激活动画（原地悬停 / 灵魂粒子 / 血条充能），
         // 演出期间同样禁止阶段评估、技能、射击与回血。
         if (updateAwakening()) {
+            return;
+        }
+
+        // ③-2 出生升天：原版激活动画（灵魂粒子 / 血条充能 / 结尾爆炸 / 吼声）完整结束之后，
+        // 用坐标驱动匀速抬到一阶段悬停高度，抬升期间同样整帧早退。
+        // 这样「旋转 → 爆炸 → 升天 → 开打」四段顺序固定，且原版演出一个环节也没有被替换。
+        if (updateSpawnAscend()) {
             return;
         }
 
@@ -581,6 +611,7 @@ public final class WitherBrain {
         }
         if (!awakeningAnnounced) {
             awakeningAnnounced = true;
+            awakeningSeen = true;
             NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 进入出生苏醒：剩余 {} tick —— 钉在原地，不评估阶段、不放技能、不射击、不回血",
                     wither.getUUID(), wither.getInvulnerableTicks());
         }
@@ -596,6 +627,75 @@ public final class WitherBrain {
      */
     public boolean isAwakening() {
         return wither.getInvulnerableTicks() > 0;
+    }
+
+    /**
+     * 出生「升天」分支：原版苏醒演出结束后，用坐标驱动把凋灵匀速抬到一阶段悬停高度。
+     *
+     * <p><b>为什么放在苏醒之后：</b>用户要求保留原版整段激活演出（原地悬停、灵魂粒子、血条充能、
+     * 结尾爆炸与吼声），旋转与升天只是外挂在它前后的表现，不能替换其中任何一个环节。
+     *
+     * <p><b>不变量：</b>返回 true 时 tick() 必须整帧早退 —— 抬升期间禁止阶段评估、技能、射击与回血，
+     * 与苏醒期完全同一套约束；结束后直接交还一阶段逻辑，此时高度已等于
+     * {@link #desiredAltitudePublic()}，不会出现「升完又瞬降」。
+     *
+     * <p><b>为什么只对「真的经历过苏醒」的凋灵生效：</b>用 {@code /summon} 生成的凋灵没有激活演出，
+     * 若也强行抬升 20 tick，会让正常的即时生成凭空少掉 1 秒反应时间。
+     *
+     * @return true 表示本帧仍在升天，tick() 应立即 return
+     */
+    private boolean updateSpawnAscend() {
+        if (spawnAscendDone) {
+            return false;
+        }
+        if (spawnAscendLeft <= 0) {
+            spawnAscendLeft = beginSpawnAscend();
+            if (spawnAscendLeft <= 0) {
+                // 未经历苏醒 / 配置关闭 / 已在目标高度：一次性收口，后续不再尝试
+                spawnAscendDone = true;
+                return false;
+            }
+        }
+        riseStep(spawnAscendStep);
+        spawnAscendLeft--;
+        if (spawnAscendLeft <= 0) {
+            spawnAscendDone = true;
+            spawnAscendStep = 0.0D;
+            NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 出生升天结束：高度 {} —— 进入一阶段战斗",
+                    wither.getUUID(), (float) wither.getY());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 计算并启动一次升天，返回总时长（tick）；返回 0 表示不需要升天。
+     *
+     * <p>目标高度取「地表高度 + 一阶段悬停高度」，与 {@link #applyAltitude()} 使用的是同一套
+     * MOTION_BLOCKING_NO_LEAVES 高度图，因此升天结束时的高度正好是一阶段要维持的高度。
+     *
+     * @return 升天总时长（tick），0 表示不启动
+     */
+    private int beginSpawnAscend() {
+        int ticks = WitherConfig.SPAWN_ASCEND_TICKS;
+        if (!awakeningSeen || ticks <= 0) {
+            return 0;
+        }
+        net.minecraft.core.BlockPos pos =
+                net.minecraft.core.BlockPos.containing(wither.getX(), wither.getY(), wither.getZ());
+        int groundY = level.getHeight(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                pos.getX(), pos.getZ());
+        double targetY = groundY + desiredAltitudePublic();
+        double dy = targetY - wither.getY();
+        if (dy <= 0.05D) {
+            // 出生点已经高于悬停高度（比如刷在高台上），没有向上的空间，直接视为完成
+            return 0;
+        }
+        spawnAscendStep = dy / ticks;
+        NewMod.LOGGER.info("[凋灵/诊断] 凋灵 {} 开始出生升天：{} → {}，{} tick",
+                wither.getUUID(), (float) wither.getY(), (float) targetY, ticks);
+        return ticks;
     }
 
     /**
@@ -989,7 +1089,7 @@ public final class WitherBrain {
         }
         LivingEntity target = targetEntity();
         if (target != null && WitherConfig.OUR_ATTACK_ENABLED) {
-            SkullVolley.fire(wither, target, false, WitherConfig.IDLE_ATTACK_DAMAGE);
+            SkullVolley.fire(wither, target, false, WitherConfig.IDLE_ATTACK_DAMAGE, false);
         }
         idleAttackCd = randint(WitherConfig.IDLE_ATTACK_INTERVAL_MIN_TICKS,
                 WitherConfig.IDLE_ATTACK_INTERVAL_MAX_TICKS);
@@ -1085,6 +1185,11 @@ public final class WitherBrain {
                 headShotCd[head]--;
             }
         }
+        // 躲箭冷却也挂在这条心跳上：本方法在任何阶段、任何模式下每帧都会执行一次，
+        // 因此躲箭冷却不会因为技能窗口或狂暴而停摆（与两个技能的 CD 语义不同）。
+        if (p1DodgeCd > 0) {
+            p1DodgeCd--;
+        }
     }
 
     /**
@@ -1126,7 +1231,9 @@ public final class WitherBrain {
             if (headShotCd[head] > 0) {
                 continue;
             }
-            SkullVolley.fireFromHead(wither, target, head, true, damage);
+            // 蓝弹替换只在第一阶段生效：fireReadyHeads 同时服务一阶段的弹幕/狂暴与
+            // 二阶段的压制弹幕，因此这里按当前阶段决定是否允许掷骰（二阶段恒为黑弹）。
+            SkullVolley.fireFromHead(wither, target, head, true, damage, !phase2);
             headShotCd[head] = (head == 0)
                     ? randint(mainMin, mainMax)
                     : randint(sideMin, sideMax);
@@ -1287,6 +1394,93 @@ public final class WitherBrain {
      */
     public void setP1Skill2Cd(int v) {
         this.p1Skill2Cd = v;
+    }
+
+    /** @return 躲箭冷却，单位 tick；>0 时不会检测也不会触发新的躲闪。 */
+    public int p1DodgeCd() {
+        return p1DodgeCd;
+    }
+
+    /**
+     * 设置躲箭冷却；触发躲闪时写入随机冷却（9~15 秒）。
+     * @param v 冷却，单位 tick；负数夹到 0
+     */
+    public void setP1DodgeCd(int v) {
+        this.p1DodgeCd = Math.max(0, v);
+    }
+
+    /** @return 躲闪剩余 tick；>0 表示本帧位移由躲闪接管。 */
+    public int p1DodgeTicks() {
+        return p1DodgeTicks;
+    }
+
+    /**
+     * 启动一次躲闪：记录总位移与持续 tick，并写入随机冷却。
+     *
+     * <p><b>为什么不在这里算「每帧固定步长」：</b>躲闪必须是「前重后轻」的爆发位移 ——
+     * 近距离的箭只有 1~2 tick 就到脸，平均分配会让第一帧只挪 0.6 格、根本来不及离开箭的判定线。
+     * 现在按权重 0.4 / 0.3 / 0.2 / 0.1 分配（见 {@link #takeDodgeStep()}），
+     * 第一帧就能挪掉总距离的 40%，后面的帧负责把动作做完、避免瞬移感。
+     *
+     * @param dx    总水平位移 X（格）
+     * @param dy    总竖直位移 Y（格，正数上升、负数下降）
+     * @param dz    总水平位移 Z（格）
+     * @param ticks 持续 tick 数
+     * @param cd    本次躲闪结束后的冷却（tick）
+     */
+    public void startDodge(double dx, double dy, double dz, int ticks, int cd) {
+        this.p1DodgeTotalTicks = Math.max(1, ticks);
+        this.dodgeTotalX = dx;
+        this.dodgeTotalY = dy;
+        this.dodgeTotalZ = dz;
+        this.p1DodgeTicks = this.p1DodgeTotalTicks;
+        this.p1DodgeCd = Math.max(0, cd);
+    }
+
+    /**
+     * 本帧的位移权重：第 i 帧（从 0 开始）取 {@code 2 × (总帧数 - i) / (总帧数 × (总帧数 + 1))}。
+     *
+     * <p>4 帧时正好是 0.4 / 0.3 / 0.2 / 0.1，总和为 1；帧数变化时仍然单调递减、总和为 1。
+     *
+     * @return 当前帧应走的位移占比（0, 1]
+     */
+    private double dodgeWeight() {
+        int total = p1DodgeTotalTicks;
+        int index = total - p1DodgeTicks;
+        if (total <= 0 || index < 0) {
+            return 0.0D;
+        }
+        return 2.0D * (total - index) / ((double) total * (total + 1));
+    }
+
+    /**
+     * 取本帧躲闪的水平位移（按前重后轻的权重分配）。
+     *
+     * <p>竖直分量单独用 {@link #takeDodgeStepY()} 取：水平位移走 {@code moveBy}、
+     * 竖直位移走 {@code riseStep}，两条路径都是坐标驱动但各自负责一个轴。
+     *
+     * @return 本帧水平位移（X/Z 已合成向量），无躲闪时返回 {@code Vec3.ZERO}
+     */
+    public Vec3 takeDodgeStep() {
+        if (p1DodgeTicks <= 0) {
+            return Vec3.ZERO;
+        }
+        double w = dodgeWeight();
+        return new Vec3(dodgeTotalX * w, 0.0D, dodgeTotalZ * w);
+    }
+
+    /** @return 本帧躲闪的竖直步长（格）；无躲闪时为 0。 */
+    public double takeDodgeStepY() {
+        return p1DodgeTicks > 0 ? dodgeTotalY * dodgeWeight() : 0.0D;
+    }
+
+    /**
+     * 躲闪剩余 tick 减 1；归零表示躲闪结束，本帧之后恢复正常风筝与平A。
+     */
+    public void tickDodge() {
+        if (p1DodgeTicks > 0) {
+            p1DodgeTicks--;
+        }
     }
 
     /**
@@ -1787,7 +1981,13 @@ public final class WitherBrain {
     /**
      * 调试指令入口：强制退回一阶段。
      * 副作用：清空 phase2、active、入场定格；把 phaseTwoEntered 复位 —— 与自然回退不同，
-     * 复位后允许再次触发二阶段入场演出；同时恢复凋灵护甲。
+     * 复位后允许再次触发二阶段入场演出；<b>同时摘掉护甲标记（而不是恢复）</b>。
+     *
+     * <p><b>为什么这里必须摘护甲：</b>护甲的语义只属于二阶段。早先这里调用
+     * {@code WitherArmor.restoreArmor}（本意是解除 {@code /wboss armor off} 的抑制），
+     * 但它同时会把凋灵<b>加进</b>护甲生效集合 —— 于是 {@code /wboss phase 1} 之后，
+     * 一阶段的凋灵也会把每一发箭都弹开、不掉血，看起来像凭空多了无敌帧。
+     * 现在改为 {@link WitherArmor#forget}：抑制与生效标记一起清掉，回到"一阶段没有任何护甲"。
      */
     public void debugForcePhaseOne() {
         phase2 = false;
@@ -1796,7 +1996,7 @@ public final class WitherBrain {
 
         phaseTwoEntered = false;
 
-        WitherArmor.restoreArmor(wither);
+        WitherArmor.forget(wither);
     }
 
     /**

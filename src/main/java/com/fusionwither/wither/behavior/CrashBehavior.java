@@ -20,7 +20,8 @@ import net.minecraft.world.phys.Vec3;
  * <ul>
  *   <li><b>蓄力</b> {@code CRASH_WINDUP_TICKS}(8t) —— 锁定方向、原地不动，且朝向对准冲锋方向，玩家可离开瞄准线规避</li>
  *   <li><b>冲锋</b> —— 直线高速（{@code CRASH_SPEED} 2.2 格/tick），命中、连续撞墙或到最大距离即结束</li>
- *   <li><b>爆炸</b> —— 伤害 + 击退 + 破坏地形（受黑名单约束）</li>
+ *   <li><b>命中</b> —— 冲锋途中<b>首次接触</b>即结算直伤 + 击退（清无敌帧保证落地）；落点再补一次
+ *       范围爆炸（伤害 + 破坏地形，受黑名单约束）</li>
  *   <li><b>上升</b> {@code 8~12} 格 —— 不攻击、护甲保持、轨迹可预测，<b>这就是玩家稳定的输出窗口</b></li>
  * </ul>
  * 「冲撞 + 上升为一个完整行为」—— 因此上升段走完前，行为池不会切别的行为（active 不释放）。
@@ -52,6 +53,8 @@ public final class CrashBehavior extends BaseBehavior {
     private int riseTimeout = 0;
     /** 冲锋阶段连续被挡的 tick 数（撞墙检测用）：连续 2 tick 没推动即判定撞墙结束冲锋。 */
     private int blockedTicks = 0;
+    /** 本次冲撞是否已经结算过直伤：冲锋途中首次接触即结算，每次冲撞只结算一次。 */
+    private boolean targetStruck = false;
 
     /** 行为名（日志与调试命令用）。 */
     @Override
@@ -65,6 +68,7 @@ public final class CrashBehavior extends BaseBehavior {
         state = State.WINDUP;
         timer = WitherConfig.CRASH_WINDUP_TICKS;
         blockedTicks = 0;
+        targetStruck = false;
 
         // 冲撞方向在蓄力瞬间锁定 —— 之后玩家移动就不再追踪，这是可规避性的来源
         Vec3 flat = flatToTarget();
@@ -109,6 +113,21 @@ public final class CrashBehavior extends BaseBehavior {
                 }
 
                 VisualFeedback.crashChargeTrail(brain().wither(), brain().level());
+
+                // 接触即结算：冲锋速度 2.2 格/tick，玩家可能在本帧内被"穿过"，
+                // 因此每 tick 判定一次；本次冲撞只结算一次（见 strike）。
+                //
+                // 垂直方向必须放宽到 CRASH_IMPACT_RADIUS：二阶段凋灵被钉在「地面 + 2.5 格」，
+                // 冲锋是纯水平位移（chargeForward 的 y 分量恒为 0），而站立玩家的碰撞箱顶只有
+                // 1.8 格。若只做水平外扩 0.5，包围盒上沿 2.3 < 凋灵下沿 2.5，判定永远不相交，
+                // 这段"接触即结算"会变成死代码、只能靠落点兜底 —— 正是实机里"撞过去却没伤害"的成因。
+                LivingEntity touched = target();
+                if (touched != null && touched.getBoundingBox()
+                        .inflate(0.5D, WitherConfig.CRASH_IMPACT_RADIUS, 0.5D)
+                        .intersects(brain().wither().getBoundingBox())) {
+                    strike(touched);
+                }
+
                 // 撞墙判定必须**连续**：被挡则累加，本帧没被挡就清零。
                 // 若只有 if(blocked) 累加而无 else 清零，长冲锋里断续出现的单帧「被挡」
                 // 会累加到 2 而误判「撞墙」提前结束。
@@ -121,22 +140,24 @@ public final class CrashBehavior extends BaseBehavior {
                 // 撞墙（连续 2 tick 没推动）或到最大距离 → 结束冲锋
                 if (blockedTicks >= 2 || travelled >= WitherConfig.CRASH_MAX_DISTANCE) {
                     // 【诊断】冲锋位移与落点 —— 实测时据此核对「是否真的全速冲出去」。
-                    com.fusionwither.NewMod.LOGGER.info(
-                            "[凋灵/诊断] 冲撞结束：位移={} 格，落点=({}, {}, {})，撞墙={}",
-                            String.format("%.1f", travelled),
-                            String.format("%.1f", brain().wither().getX()),
-                            String.format("%.1f", brain().wither().getY()),
-                            String.format("%.1f", brain().wither().getZ()),
-                            blockedTicks >= 2);
+                    // 受 debugLogBehaviorSequence 开关约束：正式游玩默认关闭，避免每轮冲撞刷屏。
+                    if (WitherConfig.DEBUG_LOG_BEHAVIOR_SEQUENCE) {
+                        com.fusionwither.NewMod.LOGGER.info(
+                                "[凋灵/诊断] 冲撞结束：位移={} 格，落点=({}, {}, {})，撞墙={}",
+                                String.format("%.1f", travelled),
+                                String.format("%.1f", brain().wither().getX()),
+                                String.format("%.1f", brain().wither().getY()),
+                                String.format("%.1f", brain().wither().getZ()),
+                                blockedTicks >= 2);
+                    }
                     state = State.IMPACT;
                 }
             }
             case IMPACT -> {
-                // 冲撞伤害：直接伤害 + 击退。
-                // 【实机反馈修复】原先只判 `distanceTo <= 半径+1.5`，而高速冲撞可能在两帧之间
-                // 「穿过」玩家所在位置，导致伤害判定落空。现在改为双保险：
-                //   ① 放宽距离判定 —— 用包围盒相交（inflate 后）而不是中心点距离
-                //   ② 沿冲锋路径再做一次「线段是否扫过玩家」的补充判定
+                // 冲撞伤害兜底：冲锋途中的接触判定（CHARGE 段 strike）可能因为玩家在
+                // 蓄力结束时刚好离开包围盒而落空，这里再按「落点半径 + 路径扫掠」补一次。
+                // 双保险与 strike 的 targetStruck 标记配合，保证同一次冲撞不会重复伤害。
+                //
                 // 目标合法性（存活、非创造、非旁观）已由 WitherBrain.targetEntity() 的索敌规则
                 // 统一保证，这里不再重复判 —— 同一语义两处实现必然漂移。
                 LivingEntity t = target();
@@ -148,18 +169,7 @@ public final class CrashBehavior extends BaseBehavior {
                     boolean swept = distanceToSegment(t.position(), chargeStart,
                             brain().wither().position()) <= WitherConfig.CRASH_IMPACT_RADIUS;
                     if (inRange || swept) {
-                        t.hurt(brain().level().damageSources().mobAttack(brain().wither()),
-                                (float) WitherConfig.CRASH_IMPACT_DAMAGE);
-                        // 击退：让「被撞飞」有实感；hurtMarked 置真让客户端立刻同步这次击退位移
-                        Vec3 push = t.position().subtract(brain().wither().position());
-                        Vec3 flat = new Vec3(push.x, 0.0D, push.z);
-                        if (flat.lengthSqr() > 1.0E-6D) {
-                            flat = flat.normalize();
-                            t.push(flat.x * WitherConfig.CRASH_KNOCKBACK,
-                                   WitherConfig.CRASH_KNOCKBACK_LIFT,
-                                   flat.z * WitherConfig.CRASH_KNOCKBACK);
-                            t.hurtMarked = true;
-                        }
+                        strike(t);
                     }
                 }
                 CrashEffects.crashExplosion(brain().wither(), brain().level());
@@ -202,10 +212,12 @@ public final class CrashBehavior extends BaseBehavior {
                     // 【诊断】上升段收尾 —— 实测据此核对「是否真的升到位」。
                     // 到达Y 应 ≈ 上一次 IMPACT 日志的落点Y + 8~12，随后由 applyAltitude
                     // 以每 tick ≤0.3 格落回「地面 + 2.5」。
-                    com.fusionwither.NewMod.LOGGER.info(
-                            "[凋灵/诊断] 上升结束：到达Y={} 目标Y={}",
-                            String.format("%.1f", brain().wither().getY()),
-                            String.format("%.1f", riseTargetY));
+                    if (WitherConfig.DEBUG_LOG_BEHAVIOR_SEQUENCE) {
+                        com.fusionwither.NewMod.LOGGER.info(
+                                "[凋灵/诊断] 上升结束：到达Y={} 目标Y={}",
+                                String.format("%.1f", brain().wither().getY()),
+                                String.format("%.1f", riseTargetY));
+                    }
                 }
             }
             case DONE -> { /* 全部段已完成，等状态机在 isFinished 为真时释放本行为 */ }
@@ -216,6 +228,41 @@ public final class CrashBehavior extends BaseBehavior {
     @Override
     protected boolean checkFinished() {
         return state == State.DONE;
+    }
+
+    /**
+     * 对目标结算一次冲撞直伤 + 击退（每次冲撞最多一次）。
+     *
+     * <p><b>为什么要清零 {@code invulnerableTime}：</b>玩家刚被凋灵之首命中时会获得 20 tick
+     * 伤后无敌帧，原版规则在无敌帧内只接受「大于上次伤害」的部分，差额不足时整段丢弃——
+     * 实测表现为「冲撞明明撞到了，血条却几乎没动」。冲撞是独立的一次重击，不应被前一发
+     * 弹幕的无敌帧抵消，因此结算前清零。直伤仍是 {@code mobAttack} 物理伤害，照常受护甲减免。</p>
+     *
+     * <p><b>击退：</b>让「被撞飞」有实感；{@code hurtMarked} 置真让客户端立刻同步这次击退位移。
+     * 目标被撞飞后已离开冲锋路径，所以在接触点结算比等到冲锋结束更符合观感。</p>
+     *
+     * @param t 被撞中的目标（由唯一索敌入口保证合法）
+     */
+    private void strike(LivingEntity t) {
+        if (targetStruck) {
+            return;
+        }
+        targetStruck = true;
+
+        // 清零伤后无敌帧：保证这次直伤不会被前一枚弹幕留下的无敌帧吞掉
+        t.invulnerableTime = 0;
+        t.hurt(brain().level().damageSources().mobAttack(brain().wither()),
+                (float) WitherConfig.CRASH_IMPACT_DAMAGE);
+
+        Vec3 push = t.position().subtract(brain().wither().position());
+        Vec3 flat = new Vec3(push.x, 0.0D, push.z);
+        if (flat.lengthSqr() > 1.0E-6D) {
+            flat = flat.normalize();
+            t.push(flat.x * WitherConfig.CRASH_KNOCKBACK,
+                   WitherConfig.CRASH_KNOCKBACK_LIFT,
+                   flat.z * WitherConfig.CRASH_KNOCKBACK);
+            t.hurtMarked = true;
+        }
     }
 
     /**

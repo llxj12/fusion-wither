@@ -40,6 +40,14 @@ public class WitherConfigDefaultsTest {
         assertEquals(600.0D, WitherConfig.WITHER_MAX_HEALTH, EPS);
         assertEquals(0.50D, WitherConfig.PHASE2_THRESHOLD, EPS);
         assertEquals(220, WitherConfig.WITHER_AWAKENING_TICKS);
+        assertEquals(45.0D, WitherConfig.SPAWN_SPIN_PEAK_DEGREES_PER_TICK, EPS);
+        assertEquals(20, WitherConfig.SPAWN_ASCEND_TICKS);
+        assertTrue("躲箭默认开启", WitherConfig.P1_DODGE_ENABLED);
+        assertEquals(180, WitherConfig.P1_DODGE_CD_MIN_TICKS);
+        assertEquals(300, WitherConfig.P1_DODGE_CD_MAX_TICKS);
+        assertEquals(2.4D, WitherConfig.P1_DODGE_DISTANCE, EPS);
+        assertEquals(4, WitherConfig.P1_DODGE_DURATION_TICKS);
+        assertEquals(3, WitherConfig.P1_DODGE_REACT_TICKS);
 
         assertEquals(6.5D, WitherConfig.P1_KITE_RETREAT_DISTANCE, EPS);
         assertEquals(8.5D, WitherConfig.P1_KITE_APPROACH_DISTANCE, EPS);
@@ -55,7 +63,10 @@ public class WitherConfigDefaultsTest {
         assertEquals(2, WitherConfig.P1_BE_DASH_SEGMENTS_MAX);
 
         assertEquals(8.0D, WitherConfig.SKULL_BLACK_DAMAGE, EPS);
-        assertEquals(12.0D, WitherConfig.SKULL_BLUE_DAMAGE, EPS);
+        assertEquals(0.65D, WitherConfig.BLUE_SKULL_CHANCE, EPS);
+        assertEquals(1.10D, WitherConfig.BLUE_SKULL_SPEED_MULTIPLIER, EPS);
+        assertEquals(2, WitherConfig.BLUE_SKULL_LOCKOUT_SHOTS);
+        assertEquals(1.5D, WitherConfig.BLUE_SKULL_DAMAGE_MULTIPLIER, EPS);
         assertEquals(200, WitherConfig.SKULL_BLUE_WITHER_DURATION_TICKS);
         assertEquals(40, WitherConfig.BARRAGE_MAIN_SHOT_INTERVAL_TICKS);
         assertEquals(40, WitherConfig.BARRAGE_SIDE_SHOT_INTERVAL_MIN_TICKS);
@@ -70,7 +81,7 @@ public class WitherConfigDefaultsTest {
         assertEquals(50, WitherConfig.WEIGHT_BARRAGE_NORMAL);
         assertEquals(70, WitherConfig.WEIGHT_CRASH_HIGH);
         assertEquals(30, WitherConfig.WEIGHT_BARRAGE_HIGH);
-        assertEquals(10.0D, WitherConfig.CRASH_IMPACT_DAMAGE, EPS);
+        assertEquals(15.0D, WitherConfig.CRASH_IMPACT_DAMAGE, EPS);
         assertEquals(2.20D, WitherConfig.CRASH_SPEED, EPS);
         assertTrue(WitherConfig.CRASH_BREAK_BLOCKS);
         assertTrue(WitherConfig.ARMOR_BLOCKS_PROJECTILES);
@@ -117,6 +128,8 @@ public class WitherConfigDefaultsTest {
         assertTrue("阶段阈值必须落在 (0,1) 开区间", WitherConfig.PHASE2_THRESHOLD > 0.0D && WitherConfig.PHASE2_THRESHOLD < 1.0D);
         assertTrue("BOSS 血量必须为正", WitherConfig.WITHER_MAX_HEALTH > 0.0D);
         assertTrue("苏醒动画不能为负", WitherConfig.WITHER_AWAKENING_TICKS >= 0);
+        assertTrue("苏醒旋转峰值不能为负", WitherConfig.SPAWN_SPIN_PEAK_DEGREES_PER_TICK >= 0.0D);
+        assertTrue("出生升天时长不能为负", WitherConfig.SPAWN_ASCEND_TICKS >= 0);
         assertTrue("冲撞伤害不能为负", WitherConfig.CRASH_IMPACT_DAMAGE >= 0.0D);
         assertTrue("冲撞速度必须为正", WitherConfig.CRASH_SPEED > 0.0D);
         assertTrue("二阶段高度必须为正", WitherConfig.PHASE2_ALTITUDE_MIN > 0.0D);

@@ -1,12 +1,13 @@
 /*
- * 【文件职责】凋灵之首（WitherSkull）的发射器：单头独立发射 + BE 式「3 黑 1 蓝」规律弹幕，
+ * 【文件职责】凋灵之首（WitherSkull）的发射器：单头独立发射 + 一阶段「10% 概率替换蓝弹」规则，
  *             并用旁挂表记录每颗弹幕的伤害与颜色标记，供命中回调读取。
  * 【所属模块】wither 核心。
  * 【协作关系】由 WitherBrain.fireReadyHeads() 按三颗头各自的冷却决定本帧谁开火，再调
  *             fireFromHead()；WitherBossHandler 在弹幕命中或消失的回调里调
  *             damageOf / isOurs / isBlue / forget 读取与清理标记。
  * 【关键约束】不新增自定义实体、也不给原版 WitherSkull 加字段 —— 伤害与颜色挂在本类的
- *             WeakHashMap 旁挂表上；"哪颗头、什么节奏"由调用方的冷却决定，本类只负责"发一发"。
+ *             WeakHashMap 旁挂表上；"哪颗头、什么节奏"由调用方的冷却决定，本类只负责"发一发"；
+ *             蓝弹必须 setDangerous(true)，否则客户端永远按黑色纹理渲染。
  */
 package com.fusionwither.wither;
 
@@ -24,7 +25,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * 弹幕发射器：原版 Java 凋灵式「一次只从一颗头发射」+ BE 式「3 黑 1 蓝」规律弹幕。
+ * 弹幕发射器：原版 Java 凋灵式「一次只从一颗头发射」+ BE 式「10% 概率替换蓝弹」的节奏。
  *
  * <p><b>为什么改成「一次只发一颗头」：</b>早先的实现是三颗头在<b>同一 tick 齐射</b>。
  * 玩家实测反馈「残血追击变成三个头一起发射」，与原版观感不符 ——
@@ -61,12 +62,13 @@ public final class SkullVolley {
 
     private SkullVolley() {}
 
-    /** 全局弹药循环计数器，实现「3 黑 1 蓝」。
-     *  <p>它是静态的、跨所有凋灵共享：每发弹幕自增 1，
-     *  再对 {@code BARRAGE_SKULLS_PER_CYCLE} 取模得到"本轮第几发"，据此决定颜色，
-     *  从而在黑色序列里按固定位置插入一颗蓝弹。用 {@code AtomicInteger} 保证自增的原子性。</p>*/
-    private static final java.util.concurrent.atomic.AtomicInteger CYCLE =
-            new java.util.concurrent.atomic.AtomicInteger(0);
+    /** 每只凋灵自己的「蓝弹锁定期」剩余发数：值表示接下来还有几发普通弹必须为黑色。
+     *  <p>用 {@code WeakHashMap} 让凋灵实体被回收后条目自动消失；
+     *  外层套 {@code synchronizedMap} 与伤害表保持一致的并发保护风格。
+     *  为什么按凋灵分别计：全局计数器会让场上多只凋灵互相消耗锁定期，
+     *  同一只凋灵的 10% 概率也就失去可预期的节奏。</p>*/
+    private static final Map<WitherBoss, Integer> BLUE_LOCKOUT =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     /** 加散布用的随机源。刻意与 {@code WitherBrain} 的决策随机源分开，
      *  避免射击散布与行为池决策互相消耗同一条随机序列、彼此影响随机分布。 */
@@ -101,15 +103,16 @@ public final class SkullVolley {
      * <p><b>副作用：</b>播一次开火音效（{@link #playShootSound}），生成一枚弹幕并登记
      * 伤害/颜色表项。客户端调用直接返回（本类逻辑是服务端专属）。</p>
      *
-     * @param wither  发射者（凋灵）
-     * @param target  当前锁定目标；为 null 时瞄准方向无法计算，直接不发射
-     * @param head    头索引：0 = 主头，1 = 左副头，2 = 右副头
-     * @param precise true = Java 式精准（误差取 {@code BARRAGE_AIM_INACCURACY}，接近 0）；
-     *                false = BE 式规律（误差取 {@code BARRAGE_LOOSE_AIM_INACCURACY}，准头略差）
-     * @param damage  直击伤害（蓝弹会被 {@code SKULL_BLUE_DAMAGE} 覆盖）
+     * @param wither    发射者（凋灵）
+     * @param target    当前锁定目标；为 null 时瞄准方向无法计算，直接不发射
+     * @param head      头索引：0 = 主头，1 = 左副头，2 = 右副头
+     * @param precise   true = Java 式精准（误差取 {@code BARRAGE_AIM_INACCURACY}，接近 0）；
+     *                  false = BE 式规律（误差取 {@code BARRAGE_LOOSE_AIM_INACCURACY}，准头略差）
+     * @param damage    直击伤害；若本发被替换成蓝弹，则按 {@code BLUE_SKULL_DAMAGE_MULTIPLIER} 放大
+     * @param allowBlue 本发是否参与「10% 替换蓝弹」判定；二阶段传 false
      */
     public static void fireFromHead(WitherBoss wither, LivingEntity target, int head,
-                                    boolean precise, double damage) {
+                                    boolean precise, double damage, boolean allowBlue) {
         Level level = wither.level();
         if (level.isClientSide()) {
             return;
@@ -120,7 +123,7 @@ public final class SkullVolley {
             return;
         }
         playShootSound(wither);
-        spawnSkull(level, wither, from, baseDir, precise, damage);
+        spawnSkull(level, wither, from, baseDir, precise, damage, allowBlue);
     }
 
     /**
@@ -135,13 +138,15 @@ public final class SkullVolley {
      *
      * <p><b>副作用：</b>同 {@link #fireFromHead}（服务端生成弹幕 + 播开火音效）。</p>
      *
-     * @param wither  发射者（凋灵）
-     * @param target  当前锁定目标；为 null 时不发射
-     * @param precise true = Java 式精准；false = BE 式规律
-     * @param damage  直击伤害
+     * @param wither    发射者（凋灵）
+     * @param target    当前锁定目标；为 null 时不发射
+     * @param precise   true = Java 式精准；false = BE 式规律
+     * @param damage    直击伤害
+     * @param allowBlue 本发是否参与「10% 替换蓝弹」判定；一阶段平A 传 true，二阶段空窗普攻传 false
      */
-    public static void fire(WitherBoss wither, LivingEntity target, boolean precise, double damage) {
-        fireFromHead(wither, target, 0, precise, damage);
+    public static void fire(WitherBoss wither, LivingEntity target, boolean precise,
+                            double damage, boolean allowBlue) {
+        fireFromHead(wither, target, 0, precise, damage, allowBlue);
     }
 
     /**
@@ -227,10 +232,16 @@ public final class SkullVolley {
     /**
      * 生成一颗凋灵之首实体，并登记它的伤害 / 颜色标记。
      *
-     * <p><b>颜色循环：</b>读全局 {@link #CYCLE} 取自增序号，对
-     * {@code BARRAGE_SKULLS_PER_CYCLE} 取模 +1 得到"本轮第几发"，
-     * 命中 {@code BARRAGE_BLUE_AT_INDEX} 的那一发是蓝弹（命中时附加凋零效果）。
-     * 用 {@code Math.floorMod} 而非 {@code %}，保证计数器将来即使回绕成负数也仍落在合法区间。</p>
+     * <p><b>颜色判定：</b>只有调用方允许（一阶段）且本发的 10% 掷骰命中、锁定期已结束时，
+     * 这一发才被替换成蓝弹；蓝弹之后 {@code BLUE_SKULL_LOCKOUT_SHOTS} 发普通弹强制黑色。
+     * 判定与锁定期全部按凋灵分别记录，见 {@link #rollBlue}。</p>
+     *
+     * <p><b>为什么蓝弹必须 {@code setDangerous(true)}：</b>1.20.1 客户端是按
+     * {@code WitherSkull.isDangerous()} 选纹理的，默认 false 永远渲染成黑色。
+     * 置真之后同时获得原版语义的方块破坏能力 —— 原版 {@code getBlockExplosionResistance}
+     * 会对 {@code WitherBoss.canDestroy(state)} 为真的方块把爆炸抗性压到 0.8，
+     * 因此"凋灵能破坏的方块"蓝弹都能破；而受保护方块的过滤仍由
+     * {@code WitherBossHandler.onExplosionDetonate} 统一拦截。</p>
      *
      * <p><b>为什么发射点还要沿视线再前移：</b>头部坐标落在身体模型内部，
      * 直接从那里生成会让弹幕先卡在自己身体里、出膛瞬间就触发自身碰撞。
@@ -238,21 +249,20 @@ public final class SkullVolley {
      * 位置与初速用两个独立常量（{@code SKULL_SPAWN_OFFSET} / {@code SKULL_VELOCITY}），
      * 不再像早期那样被同一个魔数绑死（那样无法独立调参）。</p>
      *
-     * <p><b>副作用：</b>写 {@link #SKULL_DAMAGE}（蓝弹用 {@code SKULL_BLUE_DAMAGE}，
-     * 否则用参数 {@code damage}），蓝弹再写 {@link #BLUE_SKULLS}，最后把实体加入世界。</p>
+     * <p><b>副作用：</b>写 {@link #SKULL_DAMAGE}（蓝弹为 {@code damage × BLUE_SKULL_DAMAGE_MULTIPLIER}），
+     * 蓝弹再写 {@link #BLUE_SKULLS}，最后把实体加入世界。</p>
      *
-     * @param level   当前世界（服务端）
-     * @param wither  发射者（凋灵）
-     * @param from    该头的发射点
-     * @param aimDir  该头的瞄准方向（加散布前）
-     * @param precise 瞄准模式，决定用哪一档误差常量
-     * @param damage  直击伤害（蓝弹会覆盖它）
+     * @param level     当前世界（服务端）
+     * @param wither    发射者（凋灵）
+     * @param from      该头的发射点
+     * @param aimDir    该头的瞄准方向（加散布前）
+     * @param precise   瞄准模式，决定用哪一档误差常量
+     * @param damage    这一发作为普通弹时的直击伤害
+     * @param allowBlue 本发是否参与蓝弹替换判定
      */
     private static void spawnSkull(Level level, WitherBoss wither, Vec3 from,
-                                   Vec3 aimDir, boolean precise, double damage) {
-        // 本轮第几发 → 决定黑/蓝
-        int idx = Math.floorMod(CYCLE.getAndIncrement(), WitherConfig.BARRAGE_SKULLS_PER_CYCLE) + 1;
-        boolean blue = (idx == WitherConfig.BARRAGE_BLUE_AT_INDEX);
+                                   Vec3 aimDir, boolean precise, double damage, boolean allowBlue) {
+        boolean blue = allowBlue && rollBlue(wither);
 
         double inaccuracy = precise
                 ? WitherConfig.BARRAGE_AIM_INACCURACY
@@ -264,14 +274,52 @@ public final class SkullVolley {
 
         WitherSkull skull = new WitherSkull(level, wither, dir.x, dir.y, dir.z);
         skull.setPos(spawn.x, spawn.y, spawn.z);
-        skull.setDeltaMovement(dir.scale(WitherConfig.SKULL_VELOCITY));
+        // 初速：蓝弹在普通弹基础上乘 BLUE_SKULL_SPEED_MULTIPLIER，实现"比普通弹快一点点"。
+        // 惯性衰减由 WitherSkullMixin 统一成普通弹的 0.95 —— 否则危险弹幕的 0.73 会让蓝弹
+        // 很快被普通弹反超，只提初速在远距离仍然追不上目标。
+        double speed = blue
+                ? WitherConfig.SKULL_VELOCITY * WitherConfig.BLUE_SKULL_SPEED_MULTIPLIER
+                : WitherConfig.SKULL_VELOCITY;
+        skull.setDeltaMovement(dir.scale(speed));
 
-        float dmg = (float) (blue ? WitherConfig.SKULL_BLUE_DAMAGE : damage);
+        float dmg = (float) (blue
+                ? damage * WitherConfig.BLUE_SKULL_DAMAGE_MULTIPLIER
+                : damage);
         SKULL_DAMAGE.put(skull, dmg);
         if (blue) {
+            // 客户端按这个标志选蓝色纹理；同时启用原版「可破坏凋灵能破坏的方块」语义
+            skull.setDangerous(true);
             BLUE_SKULLS.add(skull);
         }
         level.addFreshEntity(skull);
+    }
+
+    /**
+     * 决定这一发普通弹是否被替换成蓝弹，并推进该凋灵的锁定期。
+     *
+     * <p><b>规则（用户定稿）：</b>
+     * <ul>
+     *   <li>锁定期未结束时，本发强制黑色并把剩余发数减 1；</li>
+     *   <li>锁定期为 0 时掷 {@code BLUE_SKULL_CHANCE}（默认 10%）；命中则发蓝弹，
+     *       并把锁定期重置为 {@code BLUE_SKULL_LOCKOUT_SHOTS}（默认 2 发）；</li>
+     *   <li>未命中则本发黑色，锁定期保持 0，下一发继续掷骰。</li>
+     * </ul>
+     * 计数单位是「实际发射出去的单发弹幕」，因此三头错峰齐射时也逐发扣减。</p>
+     *
+     * @param wither 发射者；锁定期按凋灵分别记录
+     * @return true 表示本发应生成蓝弹
+     */
+    private static boolean rollBlue(WitherBoss wither) {
+        int lock = BLUE_LOCKOUT.getOrDefault(wither, 0);
+        if (lock > 0) {
+            BLUE_LOCKOUT.put(wither, lock - 1);
+            return false;
+        }
+        if (RNG.nextDouble() < WitherConfig.BLUE_SKULL_CHANCE) {
+            BLUE_LOCKOUT.put(wither, Math.max(0, WitherConfig.BLUE_SKULL_LOCKOUT_SHOTS));
+            return true;
+        }
+        return false;
     }
 
     /**

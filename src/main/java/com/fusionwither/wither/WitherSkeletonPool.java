@@ -9,10 +9,16 @@
 package com.fusionwither.wither;
 
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.monster.WitherSkeleton;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 
 import java.util.Collections;
@@ -122,6 +128,9 @@ public final class WitherSkeletonPool {
             if (sk == null) {
                 continue;
             }
+            // 装备石剑：EntityType.create() 不会走原版 finalizeSpawn 的装备生成流程，
+            // 因此这里必须手工写入主手，否则召唤出的骷髅全程空手、伤害只有拳头级。
+            sk.setItemSlot(EquipmentSlot.MAINHAND, buildStoneSword(sl.random));
             // 以凋灵为圆心、2.0~5.0 格半径的随机方位落点，避免全部堆在同一点
             double a = sl.random.nextDouble() * Math.PI * 2.0D;
             double r = 2.0D + sl.random.nextDouble() * 3.0D;
@@ -140,6 +149,54 @@ public final class WitherSkeletonPool {
             spawned++;
         }
         return spawned;
+    }
+
+    /**
+     * 铸造召唤骷髅的主手石剑：满耐久基础上随机损耗，并按概率附魔。
+     *
+     * <p><b>随机损耗：</b>仿"随手捡来一把旧剑"的观感，在 0 ~ 半条耐久之间随机扣减。
+     * 只扣一半是为了避免骷髅战斗中武器提前碎裂、又变回空手。</p>
+     *
+     * <p><b>附魔口径（用户定稿）：</b>三个附魔共用同一概率值 —— 每只骷髅生成时先在
+     * [{@code PHASE2_SKELETON_ENCHANT_CHANCE_MIN}, {@code MAX}]（默认 7%~15%）里抽一个概率，
+     * 然后锋利 / 火焰附加 / 击退<b>各自独立</b>掷骰；命中后等级在 I~III 之间再随机一次，
+     * 因此三附魔可以同时出现，也可能一个都没有。</p>
+     *
+     * @param random 关卡随机源（与落点随机共用，避免额外创建 Random）
+     * @return 已装备好的石剑实例
+     */
+    private static ItemStack buildStoneSword(RandomSource random) {
+        ItemStack sword = new ItemStack(Items.STONE_SWORD);
+        // 随机损耗：最多扣掉一半耐久
+        sword.setDamageValue(random.nextInt(sword.getMaxDamage() / 2 + 1));
+
+        // 三个附魔共用的中奖率：先在本只骷髅身上抽一次，再各自独立判定
+        double lo = Math.min(WitherConfig.PHASE2_SKELETON_ENCHANT_CHANCE_MIN,
+                WitherConfig.PHASE2_SKELETON_ENCHANT_CHANCE_MAX);
+        double hi = Math.max(WitherConfig.PHASE2_SKELETON_ENCHANT_CHANCE_MIN,
+                WitherConfig.PHASE2_SKELETON_ENCHANT_CHANCE_MAX);
+        double chance = lo + random.nextDouble() * (hi - lo);
+
+        rollEnchant(sword, Enchantments.SHARPNESS, chance, random);
+        rollEnchant(sword, Enchantments.FIRE_ASPECT, chance, random);
+        rollEnchant(sword, Enchantments.KNOCKBACK, chance, random);
+        return sword;
+    }
+
+    /**
+     * 对一把剑独立掷一次附魔骰：命中则以随机 I~III 级写入。
+     *
+     * @param sword  目标武器
+     * @param enchant 附魔类型（锋利 / 火焰附加 / 击退）
+     * @param chance  本次中奖率（0~1），由 {@link #buildStoneSword} 统一抽取
+     * @param random  随机源
+     */
+    private static void rollEnchant(ItemStack sword, Enchantment enchant,
+                                    double chance, RandomSource random) {
+        if (random.nextDouble() >= chance) {
+            return;
+        }
+        sword.enchant(enchant, 1 + random.nextInt(3));
     }
 
     /**

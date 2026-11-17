@@ -95,9 +95,9 @@ public final class WitherArmor {
     /**
      * 恢复该凋灵的护甲，并解除抑制。
      *
-     * <p><b>调用时机：</b>由调试命令 {@code /wboss armor on} 调用；也在
-     * {@code WitherBrain.debugForcePhaseOne()} 里用于清理调试残留，避免一次调试把护甲
-     * 永久关死。
+     * <p><b>调用时机：</b>仅由调试命令 {@code /wboss armor on} 调用。
+     * <b>不要用它做"回到一阶段"的复位</b> —— 它会把凋灵加进护甲生效集合，
+     * 一阶段也会开始弹开弹射物（历史问题，见 {@code WitherBrain.debugForcePhaseOne}）。
      *
      * <p><b>副作用：</b>移除抑制标志并重新加入生效集合。
      *
@@ -134,9 +134,11 @@ public final class WitherArmor {
     }
 
     /**
-     * 凋灵死亡时清理两个集合里的条目。
+     * 彻底清掉该凋灵的两个标记（护甲生效 + 抑制）。
      *
-     * <p><b>调用时机：</b>凋灵死亡/移除的清理流程中。
+     * <p><b>调用时机：</b>凋灵死亡/移除的清理流程；以及调试命令把凋灵切回一阶段时
+     * （{@code WitherBrain.debugForcePhaseOne}）—— 一阶段没有护甲，必须连抑制一起清空，
+     * 否则下一次进入二阶段会被误抑制。
      *
      * @param wither 目标凋灵
      */

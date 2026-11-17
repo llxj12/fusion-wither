@@ -18,6 +18,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
@@ -25,6 +26,7 @@ import net.minecraft.world.entity.projectile.WitherSkull;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
+import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 /**
@@ -238,9 +240,15 @@ public final class WitherBossHandler {
             // 全部由本事件经过，一律在此判断。
             // 近战走 mobAttack（不触发本事件）、爆炸走 explode（不触发本事件），
             // 因此两者天然不受影响（规格 G2/G3）。
+            //
+            // 【阶段门】护甲只对二阶段有意义：这里额外要求凋灵当前确实在二阶段。
+            // 状态集合是静态的，任何残留标记（例如调试命令切回一阶段、或将来新增的标记点）
+            // 一旦泄漏到一阶段，就会表现为"一阶段的箭全部被弹开、不掉血"，玩家会觉得是无敌帧。
+            // 把阶段判据放在读取侧，泄漏出来的标记再多也不会生效。
             if (event.getRayTraceResult() instanceof EntityHitResult hit
                     && hit.getEntity() instanceof WitherBoss target
-                    && WitherArmor.hasArmor(target)) {
+                    && WitherArmor.hasArmor(target)
+                    && WitherBrain.of(target).isPhaseTwo()) {
                 // 用现代 API 替代已过时的 setCanceled(boolean)：
                 // STOP_AT_CURRENT_NO_DAMAGE = 停在此处且不造成伤害，
                 // 与旧行为「完整取消（停止 + 不结算伤害）」语义一致；
@@ -249,6 +257,58 @@ public final class WitherBossHandler {
                 VisualFeedback.armorDeflected(target.level(),
                         hit.getLocation().x, hit.getLocation().y, hit.getLocation().z);
             }
+        } catch (Throwable t) {
+            logTickError(t);
+        }
+    }
+
+    /**
+     * 一阶段取消弹射物的「原版伤害冷却」（游戏总线：{@code LivingAttackEvent}）。
+     *
+     * <p><b>修的问题（实机反馈）：</b>一阶段凋灵做机动（躲箭 / BE 位移）时，
+     * 玩家会看到箭明明射在身上、箭头被弹开，血量却一点没掉，手感像凭空多了一层无敌帧。
+     *
+     * <p><b>成因：</b>原版 {@code LivingEntity.hurt} 里有一条统一的受击冷却 ——
+     * 挨打后 {@code invulnerableTime} 置为 20，在它降到 10 之前的 10 tick 内，
+     * 任何「伤害不高于上一次」的命中都会直接 {@code return false}；
+     * 而 {@code AbstractArrow} 对 false 的处理是把箭<b>弹回去</b>。
+     * 于是连续几发箭里只有第一发掉血，其余看起来就是"被弹开且无伤害"。
+     *
+     * <p><b>为什么只对弹射物、只在一阶段取消：</b>
+     * <ul>
+     *   <li>二阶段按规格由护甲挡下全部弹射物，这里改不改都不会有箭落地；</li>
+     *   <li>苏醒期的无敌是原版演出的一部分，必须保留；</li>
+     *   <li>近战保留原版伤害冷却 —— 只有箭（玩家在一阶段的主要输出手段）需要稳定结算。</li>
+     * </ul>
+     *
+     * <p><b>为什么时机可行：</b>{@code ForgeHooks.onLivingAttack} 位于
+     * {@code LivingEntity.hurt} 的第一条指令，早于上面那段 {@code invulnerableTime} 判据，
+     * 因此在这里清零一定赶得上本次结算。
+     *
+     * <p><b>副作用：</b>把 {@code wither.invulnerableTime} 清零；不修改伤害数值本身，
+     * 也不影响弹射物的飞行与命中判定。
+     *
+     * @param event 生物受击事件（伤害结算之前）
+     */
+    @SubscribeEvent
+    public static void onLivingAttack(LivingAttackEvent event) {
+        try {
+            if (!(event.getEntity() instanceof WitherBoss wither)) {
+                return;
+            }
+            if (wither.level().isClientSide()) {
+                return;
+            }
+            if (wither.getInvulnerableTicks() > 0) {
+                return;
+            }
+            if (!event.getSource().is(DamageTypeTags.IS_PROJECTILE)) {
+                return;
+            }
+            if (WitherBrain.of(wither).isPhaseTwo()) {
+                return;
+            }
+            wither.invulnerableTime = 0;
         } catch (Throwable t) {
             logTickError(t);
         }
@@ -268,7 +328,15 @@ public final class WitherBossHandler {
     @SubscribeEvent
     public static void onExplosionDetonate(net.minecraftforge.event.level.ExplosionEvent.Detonate event) {
         try {
-            if (!(event.getExplosion().getIndirectSourceEntity() instanceof WitherBoss)) {
+            // 凋灵本体引发的爆炸（冲撞落点等）直接命中第一个分支；
+            // 凋灵之首命中方块时原版也会以「弹幕实体」为源生成一次威力 1.0 的爆炸，
+            // 因此这里必须再判一次弹幕的 owner —— 否则蓝弹的方块破坏会绕过防拆家名单。
+            net.minecraft.world.entity.Entity indirect =
+                    event.getExplosion().getIndirectSourceEntity();
+            boolean fromWither = indirect instanceof WitherBoss
+                    || (indirect instanceof WitherSkull skull
+                        && skull.getOwner() instanceof WitherBoss);
+            if (!fromWither) {
                 return;
             }
             if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
